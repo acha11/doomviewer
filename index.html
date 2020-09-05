@@ -26,8 +26,6 @@
                 var v1x = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4));
                 var v1y = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4) + 2);
 
-                console.log(v0x + ", " + v0y + " -> " + v1x + ", " + v1y);
-                
                 scaleFactor = 1;
 
                 var wallHeight = 64;
@@ -96,11 +94,14 @@
             camera.rotation.x = -0.75;
             camera.rotation.y = -0.2;
 
+            var time = 0;
             function animate() {
                 cube.rotation.x += 0.01;
                 cube.rotation.y += 0.01;
 
-                camera.rotation.y += 0.005;
+                time += 0.01;
+
+                camera.rotation.y = -0.2 + Math.sin(time) * 0.1;
 
                 requestAnimationFrame(animate);
                 renderer.render(scene, camera);
