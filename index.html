@@ -70,6 +70,10 @@
                     var backSectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + leftSectorIndex * 26 + 0);
                     var backSectorCeilingHeight = wad.readInt16At(sectorsLumpInfo.offset + leftSectorIndex * 26 + 2);
 
+                    var backTopTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 4);
+                    var backBottomTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 12);
+                    var backMiddleTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 20);
+
                     // Bottom section of front side
                     if (frontBottomTexture != '-' && frontSectorFloorHeight != backSectorFloorHeight) {
                         buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, backSectorFloorHeight);
@@ -79,6 +83,18 @@
                     // Top section of front side
                     if (frontTopTexture != '-' && backSectorCeilingHeight != frontSectorCeilingHeight) {
                         buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, backSectorCeilingHeight, v1x, v1y, frontSectorCeilingHeight);
+                        faceIndex++;
+                    }
+
+                    // Bottom section of back side
+                    if (backBottomTexture != '-' && frontSectorFloorHeight != backSectorFloorHeight) {
+                        buildGeometryForWallSection(geometry, faceIndex, v1x, v1y, backSectorFloorHeight, v0x, v0y, frontSectorFloorHeight);
+                        faceIndex++;
+                    }
+
+                    // Top section of back side
+                    if (backTopTexture != '-' && backSectorCeilingHeight != frontSectorCeilingHeight) {
+                        buildGeometryForWallSection(geometry, faceIndex, v1x, v1y, frontSectorCeilingHeight, v0x, v0y, backSectorCeilingHeight);
                         faceIndex++;
                     }
                 }
