@@ -14,10 +14,24 @@
             var map01LumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
             var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", map01LumpInfo.lumpIndex);
             var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", map01LumpInfo.lumpIndex);
+            var sidedefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SIDEDEFS", map01LumpInfo.lumpIndex);
+            var sectorsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SECTORS", map01LumpInfo.lumpIndex);
 
             var numberOfLineDefs = lineDefsLumpInfo.length / 14;
 
+            var faceIndex = 0;
+
             for (var i = 0; i < numberOfLineDefs; i++) {
+                var rightSideDefIndex = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 10);
+                var leftSideDefIndex = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 12);
+
+                // Don't render two-sided walls for now
+                if (leftSideDefIndex != -1) continue;
+
+                var rightSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 28);
+                var sectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 0);
+                var sectorCeilingHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 2);
+
                 var vi0 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14));
                 var vi1 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 2);
 
@@ -28,24 +42,24 @@
 
                 scaleFactor = 1;
 
-                var wallHeight = 64;
+                geometry.vertices.push(new THREE.Vector3(v0x * scaleFactor, sectorFloorHeight,   v0y * -scaleFactor));
+                geometry.vertices.push(new THREE.Vector3(v1x * scaleFactor, sectorFloorHeight,   v1y * -scaleFactor));
+                geometry.vertices.push(new THREE.Vector3(v1x * scaleFactor, sectorCeilingHeight, v1y * -scaleFactor));
 
-                geometry.vertices.push(new THREE.Vector3(v0x * scaleFactor,          0, v0y * -scaleFactor));
-                geometry.vertices.push(new THREE.Vector3(v1x * scaleFactor,          0, v1y * -scaleFactor));
-                geometry.vertices.push(new THREE.Vector3(v1x * scaleFactor, wallHeight, v1y * -scaleFactor));
-
-                geometry.vertices.push(new THREE.Vector3(v1x * scaleFactor, wallHeight, v1y * -scaleFactor));
-                geometry.vertices.push(new THREE.Vector3(v0x * scaleFactor, wallHeight, v0y * -scaleFactor));
-                geometry.vertices.push(new THREE.Vector3(v0x * scaleFactor,          0, v0y * -scaleFactor));
+                geometry.vertices.push(new THREE.Vector3(v1x * scaleFactor, sectorCeilingHeight, v1y * -scaleFactor));
+                geometry.vertices.push(new THREE.Vector3(v0x * scaleFactor, sectorCeilingHeight, v0y * -scaleFactor));
+                geometry.vertices.push(new THREE.Vector3(v0x * scaleFactor, sectorFloorHeight,   v0y * -scaleFactor));
 
                 var normal = new THREE.Vector3(0, 0, 1);
                 var color = new THREE.Color(Math.random() * 0xffffff);
                 var materialIndex = 0;
-                geometry.faces.push(new THREE.Face3(i * 6 + 0, i * 6 + 1, i * 6 + 2, normal, color, materialIndex));
+                geometry.faces.push(new THREE.Face3(faceIndex * 6 + 0, faceIndex * 6 + 1, faceIndex * 6 + 2, normal, color, materialIndex));
 
                 var normal = new THREE.Vector3(0, 0, 1);
                 var materialIndex = 0;
-                geometry.faces.push(new THREE.Face3(i * 6 + 3, i * 6 + 4, i * 6 + 5, normal, color, materialIndex));
+                geometry.faces.push(new THREE.Face3(faceIndex * 6 + 3, faceIndex * 6 + 4, faceIndex * 6 + 5, normal, color, materialIndex));
+
+                faceIndex++;
             }
             
             geometry.computeFaceNormals();
@@ -79,11 +93,6 @@
                 vertexColors: THREE.FaceColors
             });
 
-            // Build a cube & add it to the scene
-            var geometry = new THREE.BoxGeometry();
-            var cube = new THREE.Mesh(geometry, material);
-            scene.add(cube);
-
             geometry = buildGeometry(wad);
 
             scene.add(new THREE.Mesh(geometry, material));
@@ -96,9 +105,6 @@
 
             var time = 0;
             function animate() {
-                cube.rotation.x += 0.01;
-                cube.rotation.y += 0.01;
-
                 time += 0.01;
 
                 camera.rotation.y = -0.2 + Math.sin(time) * 0.1;
