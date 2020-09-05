@@ -1,0 +1,235 @@
+<html>
+    <head>
+        <script src="three.js"></script>
+    </head>
+<body>
+    <canvas id="mainCanvas" style="display: none;" width="3200" height="3200">
+
+    </canvas>
+
+    <script>
+        function buildGeometry(wad) {
+            geometry = new THREE.Geometry();
+
+            var map01LumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
+            var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", map01LumpInfo.lumpIndex);
+            var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", map01LumpInfo.lumpIndex);
+
+            var numberOfLineDefs = lineDefsLumpInfo.length / 14;
+
+            for (var i = 0; i < numberOfLineDefs; i++) {
+                var vi0 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14));
+                var vi1 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 2);
+
+                var v0x = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4));
+                var v0y = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4) + 2);
+                var v1x = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4));
+                var v1y = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4) + 2);
+
+                console.log(v0x + ", " + v0y + " -> " + v1x + ", " + v1y);
+                
+                scaleFactor = 1;
+
+                var wallHeight = 64;
+
+                geometry.vertices.push(new THREE.Vector3(v0x * scaleFactor,          0, v0y * -scaleFactor));
+                geometry.vertices.push(new THREE.Vector3(v1x * scaleFactor,          0, v1y * -scaleFactor));
+                geometry.vertices.push(new THREE.Vector3(v1x * scaleFactor, wallHeight, v1y * -scaleFactor));
+
+                geometry.vertices.push(new THREE.Vector3(v1x * scaleFactor, wallHeight, v1y * -scaleFactor));
+                geometry.vertices.push(new THREE.Vector3(v0x * scaleFactor, wallHeight, v0y * -scaleFactor));
+                geometry.vertices.push(new THREE.Vector3(v0x * scaleFactor,          0, v0y * -scaleFactor));
+
+                var normal = new THREE.Vector3(0, 0, 1);
+                var color = new THREE.Color(Math.random() * 0xffffff);
+                var materialIndex = 0;
+                geometry.faces.push(new THREE.Face3(i * 6 + 0, i * 6 + 1, i * 6 + 2, normal, color, materialIndex));
+
+                var normal = new THREE.Vector3(0, 0, 1);
+                var materialIndex = 0;
+                geometry.faces.push(new THREE.Face3(i * 6 + 3, i * 6 + 4, i * 6 + 5, normal, color, materialIndex));
+            }
+            
+            geometry.computeFaceNormals();
+            geometry.computeVertexNormals();
+
+            return geometry;
+        }
+
+        function renderToThreeJs(wad) {
+            var scene = new THREE.Scene();
+            var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 20000 );
+
+            var renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Lights
+            var light = new THREE.AmbientLight(0x404040);
+            scene.add(light);
+
+            // White directional light at half intensity
+            var directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.x = 1;
+            directionalLight.position.y = 1;
+            directionalLight.position.z = 1;
+
+            scene.add(directionalLight);
+
+            var material = new THREE.MeshBasicMaterial({
+                wireframe: false,
+                vertexColors: THREE.FaceColors
+            });
+
+            // Build a cube & add it to the scene
+            var geometry = new THREE.BoxGeometry();
+            var cube = new THREE.Mesh(geometry, material);
+            scene.add(cube);
+
+            geometry = buildGeometry(wad);
+
+            scene.add(new THREE.Mesh(geometry, material));
+
+            camera.position.x = -200;
+            camera.position.y = 1500;
+            camera.position.z = 500;
+            camera.rotation.x = -0.75;
+            camera.rotation.y = -0.2;
+
+            function animate() {
+                cube.rotation.x += 0.01;
+                cube.rotation.y += 0.01;
+
+                camera.rotation.y += 0.005;
+
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+            }
+
+            animate();
+        }
+
+        function loadWad() {
+            var myRequest = new Request('doom2.wad');
+
+            var wad = {
+                bytes: null,
+                NumLumps: null,
+                DirectoryOffset: null
+            };
+
+            function readInt32At(offset) {
+                var val =
+                    (wad.bytes[offset    ] << 0) + 
+                    (wad.bytes[offset + 1] << 8) +
+                    (wad.bytes[offset + 2] << 16) +
+                    (wad.bytes[offset + 3] << 24);
+
+                return val;
+            }
+
+            
+            function readInt16At(offset) {
+                var val =
+                    (wad.bytes[offset    ] << 0) + 
+                    (wad.bytes[offset + 1] << 8);
+
+                if (val > 32767) {
+                    val = -65536 + val;
+                }
+
+                return val;
+            }
+
+            function readStringAt(offset, maxLength) {
+                var s = "";
+
+                var i = 0;
+
+                do {
+                    var b = wad.bytes[offset + i];
+
+                    if (b) {
+                        s += String.fromCharCode(b);
+                    }
+
+                    i++;
+                } while (i < maxLength);
+
+                return s;
+            }
+
+            function getFirstMatchingLumpAfterSpecifiedLumpIndex(name, startIndex) {
+                for (var i = startIndex; i < wad.NumLumps; i++) {
+                    var directoryEntryOffset = wad.DirectoryOffset + i * 16;
+                    
+                    var lumpName = readStringAt(directoryEntryOffset + 8, 8);
+
+                    if (lumpName == name) {
+                        return {
+                            offset: readInt32At(directoryEntryOffset),
+                            length: readInt32At(directoryEntryOffset + 4),
+                            name: name,
+                            lumpIndex: i
+                        };
+                    }
+                }
+            }
+
+            return (
+                fetch(myRequest)
+                .then(response => response.blob())
+                .then(blob => blob.arrayBuffer())
+                .then(arrayBuffer => {
+                    wad.bytes = new Uint8Array(arrayBuffer);
+
+                    wad.NumLumps = readInt32At(4);
+                    wad.DirectoryOffset = readInt32At(8);
+
+                    wad.getFirstMatchingLumpAfterSpecifiedLumpIndex = getFirstMatchingLumpAfterSpecifiedLumpIndex;
+                    wad.readInt16At = readInt16At;
+                    wad.readInt32At = readInt32At;
+
+                    return wad;
+                })
+            );
+        }
+
+        function render2dMapToCanvas(wad) {
+            var canvas = document.getElementById('mainCanvas');
+
+            canvas.style.display = "inline-block";
+
+            var ctx = canvas.getContext('2d');
+
+            var map01LumpInfo =    wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
+            var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", map01LumpInfo.lumpIndex);
+            var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", map01LumpInfo.lumpIndex);
+
+            var scaleFactor = 0.25;
+            var xOffset = 400;
+            var yOffset = 800;
+
+            var numberOfLineDefs = lineDefsLumpInfo.length / 14;
+
+            for (var i = 0; i < numberOfLineDefs; i++) {
+                var vi0 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14));
+                var vi1 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 2);
+
+                var v0x = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4));
+                var v0y = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4) + 2);
+                var v1x = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4));
+                var v1y = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4) + 2);
+
+                ctx.beginPath();
+                ctx.moveTo(v0x * scaleFactor + xOffset, v0y * -scaleFactor + yOffset);
+                ctx.lineTo(v1x * scaleFactor + xOffset, v1y * -scaleFactor + yOffset);
+                ctx.stroke();
+            }
+        }
+
+        //loadWad().then(render2dMapToCanvas);
+        loadWad().then(renderToThreeJs);
+    </script>
+</body>
+</html>
