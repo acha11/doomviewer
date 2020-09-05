@@ -43,12 +43,9 @@
                 var rightSideDefIndex = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 10);
                 var leftSideDefIndex = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 12);
 
-                // Don't render two-sided walls for now
-                if (leftSideDefIndex != -1) continue;
-
                 var rightSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 28);
-                var sectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 0);
-                var sectorCeilingHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 2);
+                var frontSectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 0);
+                var frontSectorCeilingHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 2);
 
                 var vi0 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14));
                 var vi1 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 2);
@@ -58,14 +55,33 @@
                 var v1x = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4));
                 var v1y = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4) + 2);
 
-                scaleFactor = 1;
+                var frontTopTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 4);
+                var frontBottomTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 12);
+                var frontMiddleTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 20);
+                
+                // If this is a one-sided wall
+                if (leftSideDefIndex == -1) {
+                    if (frontMiddleTexture != '-') {
+                        buildGeometryForWallSection(geometry, faceIndex++, v0x, v0y, frontSectorFloorHeight, v1x, v1y, frontSectorCeilingHeight);
+                    }
+                } else {
+                    // This is a two-sided wall - read the far-side's details
+                    var leftSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 28);
+                    var backSectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + leftSectorIndex * 26 + 0);
+                    var backSectorCeilingHeight = wad.readInt16At(sectorsLumpInfo.offset + leftSectorIndex * 26 + 2);
 
-                var bottom = sectorFloorHeight;
-                var top = sectorCeilingHeight;
+                    // Bottom section of front side
+                    if (frontBottomTexture != '-') {
+                        buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, backSectorFloorHeight);
+                        faceIndex++;
+                    }
 
-                buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, bottom, v1x, v1y, top);
-
-                faceIndex++;
+                    // Top section of front side
+                    if (frontTopTexture != '-') {
+                        buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, backSectorCeilingHeight, v1x, v1y, frontSectorCeilingHeight);
+                        faceIndex++;
+                    }
+                }
             }
             
             geometry.computeFaceNormals();
@@ -202,6 +218,7 @@
                     wad.getFirstMatchingLumpAfterSpecifiedLumpIndex = getFirstMatchingLumpAfterSpecifiedLumpIndex;
                     wad.readInt16At = readInt16At;
                     wad.readInt32At = readInt32At;
+                    wad.readStringAt = readStringAt;
 
                     return wad;
                 })
