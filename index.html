@@ -143,6 +143,13 @@
             var textureLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("TEXTURE1", 0);
             var pnamesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("PNAMES", 0);
             var patchStartLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("P_START", 0);
+            var playpalLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("PLAYPAL", 0);
+
+            var palette = [];
+
+            for (var i = 0; i < 768; i++) {
+                palette.push(wad.readByteAt(playpalLumpInfo.offset + i));
+            }
 
             var numTextures = wad.readInt32At(textureLumpInfo.offset);
 
@@ -198,13 +205,11 @@
                                 window.console.log("      Pixels in run: " + pixelsInRun);
 
                                 for (var pixelOffset = postOffset + 3; pixelOffset < postOffset + 3 + pixelsInRun - 2; pixelOffset++) {
-                                    //window.console.log("        Pixel: " + wad.readByteAt(pixelOffset));
-
                                     var colorIndex = wad.readByteAt(pixelOffset);
 
-                                    data[(currentRow * width + col) * 3 + 0] = colorIndex;
-                                    data[(currentRow * width + col) * 3 + 1] = colorIndex;
-                                    data[(currentRow * width + col) * 3 + 2] = colorIndex;
+                                    data[(currentRow * width + col) * 3 + 0] = palette[colorIndex * 3];
+                                    data[(currentRow * width + col) * 3 + 1] = palette[colorIndex * 3 + 1];
+                                    data[(currentRow * width + col) * 3 + 2] = palette[colorIndex * 3 + 2];
 
                                     currentRow++;
                                 }
