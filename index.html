@@ -46,9 +46,9 @@
                 var rightSideDefIndex = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 10);
                 var leftSideDefIndex = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 12);
 
-                var rightSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 28);
-                var frontSectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 0);
-                var frontSectorCeilingHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 2);
+                var rightSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 28, 8);
+                var frontSectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 0, 8);
+                var frontSectorCeilingHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 2, 8);
 
                 var vi0 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14));
                 var vi1 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 2);
@@ -58,9 +58,9 @@
                 var v1x = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4));
                 var v1y = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4) + 2);
 
-                var frontTopTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 4);
-                var frontBottomTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 12);
-                var frontMiddleTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 20);
+                var frontTopTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 4, 8);
+                var frontBottomTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 12, 8);
+                var frontMiddleTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 20, 8);
                 
                 // If this is a one-sided wall
                 if (leftSideDefIndex == -1) {
@@ -109,21 +109,131 @@
             return geometry;
         }
 
+        function getTestTexture() {
+            var texture = new THREE.TextureLoader().load("test.jpg");
+
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 1);
+
+            return texture;
+        }
+
+        function fillTextureArrayWithTestPattern(data, width, height) {
+            var size = width * height;
+
+            for ( var i = 0; i < size; i ++ ) {
+                var stride = i * 3;
+
+                data[stride] = 0;
+                data[stride + 1] = i / 256;
+                data[stride + 2] = i % 256;
+            }
+        }
+
+        function buildTexture(wad, textureName) {
+            var width = 256;
+            var height = 256;
+
+            var data = new Uint8Array(3 * width * height);
+
+            fillTextureArrayWithTestPattern(data, width, height);
+
+            // Find the texture in the wad
+            var textureLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("TEXTURE1", 0);
+            var pnamesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("PNAMES", 0);
+            var patchStartLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("P_START", 0);
+
+            var numTextures = wad.readInt32At(textureLumpInfo.offset);
+
+            for (var i = 0; i < numTextures; i++) {
+                var relativeOffsetToTextureInfo = wad.readInt32At(textureLumpInfo.offset + 4 + i * 4);
+
+                var absoluteOffsetToTextureInfo = textureLumpInfo.offset + relativeOffsetToTextureInfo;
+
+                var foundTextureName = wad.readStringAt(absoluteOffsetToTextureInfo, 8);
+
+                if (foundTextureName == textureName) {
+                    var texWidth = wad.readInt16At(absoluteOffsetToTextureInfo + 12);
+                    var texHeight = wad.readInt16At(absoluteOffsetToTextureInfo + 14);
+
+                    window.console.log(i + " " + textureName + ", dims " + texWidth + " x " + texHeight);
+
+                    var numberOfPatches = wad.readInt16At(absoluteOffsetToTextureInfo + 20);
+
+                    for (var j = 0; j < numberOfPatches; j++) {
+                        var offsetOfPatchInfo = absoluteOffsetToTextureInfo + 22 + j * 10;
+
+                        var patchXOffset = wad.readInt16At(offsetOfPatchInfo);
+                        var patchYOffset = wad.readInt16At(offsetOfPatchInfo + 2);
+                        var patchIndex = wad.readInt16At(offsetOfPatchInfo + 4);
+
+                        var patchName = wad.readStringAt(pnamesLumpInfo.offset + 4 + patchIndex * 8, 8);
+
+                        window.console.log("  Applying patch " + j + ", patch index " + patchIndex + ", with name " + patchName);
+
+                        var picLump = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex(patchName, patchStartLumpInfo.lumpIndex);
+
+                        var picWidth = wad.readInt16At(picLump.offset);
+                        var picHeight = wad.readInt16At(picLump.offset + 2);
+                        var picLeftOffset = wad.readInt16At(picLump.offset + 4);
+                        var picTopOffset = wad.readInt16At(picLump.offset + 6);
+
+                        window.console.log("    Pic dims: " + picWidth + " x " + picHeight + ", offset " + picLeftOffset + ", " + picTopOffset);
+
+                        for (var col = 0; col < picWidth; col++) {
+                            var colOffset = wad.readInt32At(picLump.offset + 8 + col * 4) + picLump.offset;
+
+                            var currentRow = wad.readByteAt(colOffset);
+
+                            var postOffset = colOffset + 1;
+                            
+                            do {
+                                var pixelsInRun = wad.readByteAt(postOffset);
+
+                                if (pixelsInRun == 255) {
+                                    break;
+                                }
+
+                                window.console.log("      Pixels in run: " + pixelsInRun);
+
+                                for (var pixelOffset = postOffset + 3; pixelOffset < postOffset + 3 + pixelsInRun - 2; pixelOffset++) {
+                                    //window.console.log("        Pixel: " + wad.readByteAt(pixelOffset));
+
+                                    var colorIndex = wad.readByteAt(pixelOffset);
+
+                                    data[(currentRow * width + col) * 3 + 0] = colorIndex;
+                                    data[(currentRow * width + col) * 3 + 1] = colorIndex;
+                                    data[(currentRow * width + col) * 3 + 2] = colorIndex;
+
+                                    currentRow++;
+                                }
+
+                                postOffset += pixelsInRun + 3;
+                            } while (pixelsInRun != 255);
+                        }
+                    }
+                }
+            }
+
+            window.console.log("Number of textures: " + numTextures);
+
+            var texture = new THREE.DataTexture(data, width, height, THREE.RGBFormat);
+
+            return texture;
+        }
+
         function renderToThreeJs(wad) {
             var scene = new THREE.Scene();
-            var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 20000 );
+            var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 20000);
 
             var renderer = new THREE.WebGLRenderer();
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
             // Texture
-            // load a texture, set wrap mode to repeat
-            var texture = new THREE.TextureLoader().load("test.jpg");
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(1, 1);
-
+            var texture = buildTexture(wad, "BRONZE1");
+            
             // Lights
             var light = new THREE.AmbientLight(0x404040);
             scene.add(light);
@@ -175,6 +285,10 @@
                 DirectoryOffset: null
             };
 
+            function readByteAt(offset) { 
+                return wad.bytes[offset];
+            }
+
             function readInt32At(offset) {
                 var val =
                     (wad.bytes[offset    ] << 0) + 
@@ -216,6 +330,16 @@
                 return s;
             }
 
+            function dumpLumps() {
+                for (var i = 0; i < wad.NumLumps; i++) {
+                    var directoryEntryOffset = wad.DirectoryOffset + i * 16;
+                    
+                    var lumpName = readStringAt(directoryEntryOffset + 8, 8);
+
+                    window.console.log(lumpName);
+                }
+            }
+
             function getFirstMatchingLumpAfterSpecifiedLumpIndex(name, startIndex) {
                 for (var i = startIndex; i < wad.NumLumps; i++) {
                     var directoryEntryOffset = wad.DirectoryOffset + i * 16;
@@ -244,6 +368,7 @@
                     wad.DirectoryOffset = readInt32At(8);
 
                     wad.getFirstMatchingLumpAfterSpecifiedLumpIndex = getFirstMatchingLumpAfterSpecifiedLumpIndex;
+                    wad.readByteAt = readByteAt;
                     wad.readInt16At = readInt16At;
                     wad.readInt32At = readInt32At;
                     wad.readStringAt = readStringAt;
