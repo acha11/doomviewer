@@ -132,12 +132,7 @@
         }
 
         function buildTexture(wad, textureName) {
-            var width = 256;
-            var height = 256;
-
-            var data = new Uint8Array(3 * width * height);
-
-            fillTextureArrayWithTestPattern(data, width, height);
+//            fillTextureArrayWithTestPattern(data, width, height);
 
             // Find the texture in the wad
             var textureLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("TEXTURE1", 0);
@@ -163,6 +158,11 @@
                 if (foundTextureName == textureName) {
                     var texWidth = wad.readInt16At(absoluteOffsetToTextureInfo + 12);
                     var texHeight = wad.readInt16At(absoluteOffsetToTextureInfo + 14);
+
+                    var width = 64;
+                    var height = 128;
+
+                    var data = new Uint8Array(3 * width * height);
 
                     window.console.log(i + " " + textureName + ", dims " + texWidth + " x " + texHeight);
 
@@ -207,9 +207,9 @@
                                 for (var pixelOffset = postOffset + 3; pixelOffset < postOffset + 3 + pixelsInRun - 2; pixelOffset++) {
                                     var colorIndex = wad.readByteAt(pixelOffset);
 
-                                    data[(currentRow * width + col) * 3 + 0] = palette[colorIndex * 3];
-                                    data[(currentRow * width + col) * 3 + 1] = palette[colorIndex * 3 + 1];
-                                    data[(currentRow * width + col) * 3 + 2] = palette[colorIndex * 3 + 2];
+                                    data[((height - currentRow - 1) * width + col) * 3 + 0] = palette[colorIndex * 3];
+                                    data[((height - currentRow - 1) * width + col) * 3 + 1] = palette[colorIndex * 3 + 1];
+                                    data[((height - currentRow - 1) * width + col) * 3 + 2] = palette[colorIndex * 3 + 2];
 
                                     currentRow++;
                                 }
@@ -218,14 +218,12 @@
                             } while (pixelsInRun != 255);
                         }
                     }
+
+                    var texture = new THREE.DataTexture(data, width, height, THREE.RGBFormat);
+
+                    return texture;
                 }
             }
-
-            window.console.log("Number of textures: " + numTextures);
-
-            var texture = new THREE.DataTexture(data, width, height, THREE.RGBFormat);
-
-            return texture;
         }
 
         function renderToThreeJs(wad) {
