@@ -17,10 +17,13 @@
             geometry.vertices.push(new THREE.Vector3(v0x, bottom, -v0y));
 
             var normal = new THREE.Vector3(0, 0, 1);
-            var color = new THREE.Color(Math.floor(Math.random() * 256) * 256);
+            var color = new THREE.Color(0xffffffff);
             var materialIndex = 0;
             geometry.faces.push(new THREE.Face3(faceIndex * 6 + 0, faceIndex * 6 + 1, faceIndex * 6 + 2, normal, color, materialIndex));
 
+            geometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1)]);
+            geometry.faceVertexUvs[0].push([new THREE.Vector2(1, 1), new THREE.Vector2(0, 1), new THREE.Vector2(0, 0)]);
+            
             var normal = new THREE.Vector3(0, 0, 1);
             var materialIndex = 0;
             geometry.faces.push(new THREE.Face3(faceIndex * 6 + 3, faceIndex * 6 + 4, faceIndex * 6 + 5, normal, color, materialIndex));
@@ -114,6 +117,13 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
+            // Texture
+            // load a texture, set wrap mode to repeat
+            var texture = new THREE.TextureLoader().load("test.jpg");
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 1);
+
             // Lights
             var light = new THREE.AmbientLight(0x404040);
             scene.add(light);
@@ -128,7 +138,8 @@
 
             var material = new THREE.MeshBasicMaterial({
                 wireframe: false,
-                vertexColors: THREE.FaceColors
+                vertexColors: THREE.FaceColors,
+                map: texture
             });
 
             geometry = buildGeometry(wad);
