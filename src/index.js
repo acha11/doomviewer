@@ -1,4 +1,5 @@
 import { 
+    Clock,
     PerspectiveCamera,
     Scene, 
     MeshBasicMaterial, 
@@ -16,6 +17,12 @@ import {
     WebGLRenderer,
     AmbientLight,
     DirectionalLight} from 'three';
+
+
+import { FirstPersonControls } from 'three/examples/jsm/controls/FirstPersonControls.js';
+
+
+var clock = new Clock();
 
 function buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, bottom, v1x, v1y, top) {
     geometry.vertices.push(new Vector3(v0x, bottom, -v0y));
@@ -253,9 +260,26 @@ function renderToThreeJs(wad) {
     var scene = new Scene();
     var camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 20000);
 
+    
     var renderer = new WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
+
+
+
+    
+
+    var controls = new FirstPersonControls(camera);
+    controls.lookSpeed = 0.4;
+    controls.movementSpeed = 200;
+    controls.noFly = true;
+    controls.lookVertical = true;
+    controls.constrainVertical = true;
+    controls.verticalMin = 1.0;
+    controls.verticalMax = 2.0;
+    controls.lon = -150;
+    controls.lat = 120;
+
 
     var materialManager = {
         texturesByTexname: {},
@@ -286,11 +310,10 @@ function renderToThreeJs(wad) {
 
     var time = 0;
     function animate() {
-        time += 0.01;
 
-        camera.position.x = -200 + Math.sin(time * 0.6) * 1200;
-        camera.position.y = 1000 + Math.sin(time * 0.5) * 800;
-        camera.rotation.y = -0.2 + Math.sin(time) * 0.1;
+                
+        var delta = clock.getDelta();
+        controls.update(delta);
 
         requestAnimationFrame(animate);
         renderer.render(scene, camera);
