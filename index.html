@@ -29,86 +29,6 @@
             geometry.faces.push(new THREE.Face3(faceIndex * 6 + 3, faceIndex * 6 + 4, faceIndex * 6 + 5, normal, color, materialIndex));
         }
 
-        function buildGeometry(wad) {
-            geometry = new THREE.Geometry();
-
-            var map01LumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
-            var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", map01LumpInfo.lumpIndex);
-            var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", map01LumpInfo.lumpIndex);
-            var sidedefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SIDEDEFS", map01LumpInfo.lumpIndex);
-            var sectorsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SECTORS", map01LumpInfo.lumpIndex);
-
-            var numberOfLineDefs = lineDefsLumpInfo.length / 14;
-
-            var faceIndex = 0;
-
-            for (var i = 0; i < numberOfLineDefs; i++) {
-                var rightSideDefIndex = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 10);
-                var leftSideDefIndex = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 12);
-
-                var rightSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 28, 8);
-                var frontSectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 0, 8);
-                var frontSectorCeilingHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 2, 8);
-
-                var vi0 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14));
-                var vi1 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 2);
-
-                var v0x = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4));
-                var v0y = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4) + 2);
-                var v1x = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4));
-                var v1y = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4) + 2);
-
-                var frontTopTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 4, 8);
-                var frontBottomTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 12, 8);
-                var frontMiddleTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 20, 8);
-                
-                // If this is a one-sided wall
-                if (leftSideDefIndex == -1) {
-                    if (frontMiddleTexture != '-') {
-                        buildGeometryForWallSection(geometry, faceIndex++, v0x, v0y, frontSectorFloorHeight, v1x, v1y, frontSectorCeilingHeight);
-                    }
-                } else {
-                    // This is a two-sided wall - read the far-side's details
-                    var leftSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 28);
-                    var backSectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + leftSectorIndex * 26 + 0);
-                    var backSectorCeilingHeight = wad.readInt16At(sectorsLumpInfo.offset + leftSectorIndex * 26 + 2);
-
-                    var backTopTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 4);
-                    var backBottomTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 12);
-                    var backMiddleTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 20);
-
-                    // Bottom section of front side
-                    if (frontBottomTexture != '-' && frontSectorFloorHeight != backSectorFloorHeight) {
-                        buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, backSectorFloorHeight);
-                        faceIndex++;
-                    }
-
-                    // Top section of front side
-                    if (frontTopTexture != '-' && backSectorCeilingHeight != frontSectorCeilingHeight) {
-                        buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, backSectorCeilingHeight, v1x, v1y, frontSectorCeilingHeight);
-                        faceIndex++;
-                    }
-
-                    // Bottom section of back side
-                    if (backBottomTexture != '-' && frontSectorFloorHeight != backSectorFloorHeight) {
-                        buildGeometryForWallSection(geometry, faceIndex, v1x, v1y, backSectorFloorHeight, v0x, v0y, frontSectorFloorHeight);
-                        faceIndex++;
-                    }
-
-                    // Top section of back side
-                    if (backTopTexture != '-' && backSectorCeilingHeight != frontSectorCeilingHeight) {
-                        buildGeometryForWallSection(geometry, faceIndex, v1x, v1y, frontSectorCeilingHeight, v0x, v0y, backSectorCeilingHeight);
-                        faceIndex++;
-                    }
-                }
-            }
-            
-            geometry.computeFaceNormals();
-            geometry.computeVertexNormals();
-
-            return geometry;
-        }
-
         function getTestTexture() {
             var texture = new THREE.TextureLoader().load("test.jpg");
 
@@ -202,8 +122,6 @@
                                     break;
                                 }
 
-                                window.console.log("      Pixels in run: " + pixelsInRun);
-
                                 for (var pixelOffset = postOffset + 3; pixelOffset < postOffset + 3 + pixelsInRun - 2; pixelOffset++) {
                                     var colorIndex = wad.readByteAt(pixelOffset);
 
@@ -226,6 +144,112 @@
             }
         }
 
+        function materialManager_getMaterial(texname) {
+            var material = this.materialsByTexname[texname];
+
+            if (!material) {
+                // Textures
+                this.texturesByTexname[texname] = buildTexture(this.wad, texname);
+
+                // Materials
+                material =
+                    new THREE.MeshBasicMaterial({
+                        wireframe: false,
+                        vertexColors: THREE.FaceColors,
+                        map: this.texturesByTexname[texname]
+                    });
+
+                this.materialsByTexname[texname] = material;
+            }
+
+            return material;
+        }
+
+        function buildSingleWallSectionGeometry(scene, materialManager, texname, faceIndex, v0x, v0y, bottom, v1x, v1y, top) {
+            var geometry = new THREE.Geometry();
+
+            buildGeometryForWallSection(geometry, 0, v0x, v0y, bottom, v1x, v1y, top);
+
+            geometry.computeFaceNormals();
+            geometry.computeVertexNormals();
+
+            scene.add(new THREE.Mesh(geometry, materialManager.getMaterial(texname)));
+        }
+
+        function buildScene(wad, scene, materialManager) {
+            var map01LumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
+            var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", map01LumpInfo.lumpIndex);
+            var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", map01LumpInfo.lumpIndex);
+            var sidedefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SIDEDEFS", map01LumpInfo.lumpIndex);
+            var sectorsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SECTORS", map01LumpInfo.lumpIndex);
+
+            var numberOfLineDefs = lineDefsLumpInfo.length / 14;
+
+            var faceIndex = 0;
+
+            for (var i = 0; i < numberOfLineDefs; i++) {
+                var rightSideDefIndex = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 10);
+                var leftSideDefIndex = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 12);
+
+                var rightSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 28, 8);
+                var frontSectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 0, 8);
+                var frontSectorCeilingHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 2, 8);
+
+                var vi0 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14));
+                var vi1 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 2);
+
+                var v0x = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4));
+                var v0y = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4) + 2);
+                var v1x = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4));
+                var v1y = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4) + 2);
+
+                var frontTopTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 4, 8);
+                var frontBottomTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 12, 8);
+                var frontMiddleTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 20, 8);
+                
+                // If this is a one-sided wall
+                if (leftSideDefIndex == -1) {
+                    if (frontMiddleTexture != '-') {
+                        buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, frontSectorCeilingHeight);
+                        faceIndex++;
+                    }
+                } else {
+                    // This is a two-sided wall - read the far-side's details
+                    var leftSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 28);
+                    var backSectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + leftSectorIndex * 26 + 0);
+                    var backSectorCeilingHeight = wad.readInt16At(sectorsLumpInfo.offset + leftSectorIndex * 26 + 2);
+
+                    var backTopTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 4);
+                    var backBottomTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 12);
+                    var backMiddleTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 20);
+
+                    // Bottom section of front side
+                    if (frontBottomTexture != '-' && frontSectorFloorHeight != backSectorFloorHeight) {
+                        buildSingleWallSectionGeometry(scene, materialManager, frontBottomTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, backSectorFloorHeight);
+                        faceIndex++;
+                    }
+
+                    // Top section of front side
+                    if (frontTopTexture != '-' && backSectorCeilingHeight != frontSectorCeilingHeight) {
+                        buildSingleWallSectionGeometry(scene, materialManager, frontTopTexture, faceIndex, v0x, v0y, backSectorCeilingHeight, v1x, v1y, frontSectorCeilingHeight);
+                        faceIndex++;
+                    }
+
+                    // Bottom section of back side
+                    if (backBottomTexture != '-' && frontSectorFloorHeight != backSectorFloorHeight) {
+                        buildSingleWallSectionGeometry(scene, materialManager, backBottomTexture, faceIndex, v1x, v1y, backSectorFloorHeight, v0x, v0y, frontSectorFloorHeight);
+                        faceIndex++;
+                    }
+
+                    // Top section of back side
+                    if (backTopTexture != '-' && backSectorCeilingHeight != frontSectorCeilingHeight) {
+                        buildSingleWallSectionGeometry(scene, materialManager, backTopTexture, faceIndex, v1x, v1y, frontSectorCeilingHeight, v0x, v0y, backSectorCeilingHeight);
+                        faceIndex++;
+                    }
+                }
+            }
+        }
+
         function renderToThreeJs(wad) {
             var scene = new THREE.Scene();
             var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 20000);
@@ -234,8 +258,13 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // Texture
-            var texture = buildTexture(wad, "BRONZE1");
+            var materialManager = {
+                texturesByTexname: {},
+                materialsByTexname: {},
+                wad: wad,
+
+                getMaterial: materialManager_getMaterial
+            };
             
             // Lights
             var light = new THREE.AmbientLight(0x404040);
@@ -249,15 +278,7 @@
 
             scene.add(directionalLight);
 
-            var material = new THREE.MeshBasicMaterial({
-                wireframe: false,
-                vertexColors: THREE.FaceColors,
-                map: texture
-            });
-
-            geometry = buildGeometry(wad);
-
-            scene.add(new THREE.Mesh(geometry, material));
+            buildScene(wad, scene, materialManager);
 
             camera.position.y = 1000;
             camera.position.z = 500;
