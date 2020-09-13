@@ -24,7 +24,53 @@ import { FpsStyleControls } from './FpsStyleControls.js';
 
 var clock = new Clock();
 
-function buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, bottom, v1x, v1y, top, textureXOffset, textureYOffset) {
+
+// wallSection:
+//    0 = lower
+//    1 = middle
+//    2 = upper
+function calculateTopAndBottomTexelCoords(textureYOffset, wallSection, upperUnpeg, lowerUnpeg, bottom, top) {
+    var bottomTexel, topTexel;
+
+    var heightOfWallSection = top - bottom;
+
+    switch (wallSection) {
+        case 0: // lower - PLACEHOLDER!!! POSSIBLY WRONG!
+            if (lowerUnpeg) {
+                topTexel = 0 - textureYOffset;
+                bottomTexel = 0 - heightOfWallSection - textureYOffset;;
+            } else {
+                topTexel = 0 - textureYOffset;
+                bottomTexel = 0 - heightOfWallSection - textureYOffset;
+            }
+            break;
+        case 1: // middle
+            if (lowerUnpeg) {
+                bottomTexel = 0 - textureYOffset;
+                topTexel = heightOfWallSection - textureYOffset;
+            } else {
+                bottomTexel = 0 - heightOfWallSection - textureYOffset;
+                topTexel = 0 - textureYOffset;
+            }
+            break;
+        case 2: // upper - PLACEHOLDER!!! POSSIBLY WRONG!
+            if (upperUnpeg) {
+                bottomTexel = 0 - heightOfWallSection - textureYOffset;
+                topTexel = 0 - textureYOffset;
+            } else {
+                bottomTexel = 0 - textureYOffset;
+                topTexel = heightOfWallSection - textureYOffset;
+            }
+            break;
+    }
+
+    return {
+        bottom: bottomTexel,
+        top: topTexel
+    };
+}
+
+function buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, bottom, v1x, v1y, top, textureXOffset, textureYOffset, wallSection, upperUnpeg, lowerUnpeg) {
     geometry.vertices.push(new Vector3(v0x, bottom, -v0y));
     geometry.vertices.push(new Vector3(v1x, bottom, -v1y));
     geometry.vertices.push(new Vector3(v1x, top, -v1y));
@@ -40,24 +86,21 @@ function buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, bottom, v1x,
     // distance from v0 to v1 in 2d (ignoring height dimension)
     var lengthIn2d = Math.sqrt((v1x - v0x) * (v1x - v0x) + (v1y - v0y) * (v1y - v0y));
 
-    // TODO: Implement lower unpegged behaviour (draws top up)
-    var lowerUnpegged = false;
-    var texelAtTop =    (lowerUnpegged ? top - bottom : 0) + textureYOffset;
-    var texelAtBottom = (lowerUnpegged ? 0 : 0 - (top - bottom)) + textureYOffset;
+    var verticalTexCoords = calculateTopAndBottomTexelCoords(textureYOffset, wallSection, upperUnpeg, lowerUnpeg, bottom, top);
 
     geometry.faceVertexUvs[0].push(
         [
-            new Vector2(textureXOffset,              texelAtBottom), 
-            new Vector2(textureXOffset + lengthIn2d, texelAtBottom), 
-            new Vector2(textureXOffset + lengthIn2d, texelAtTop)
+            new Vector2(textureXOffset,              verticalTexCoords.bottom), 
+            new Vector2(textureXOffset + lengthIn2d, verticalTexCoords.bottom), 
+            new Vector2(textureXOffset + lengthIn2d, verticalTexCoords.top)
         ]
     );
 
     geometry.faceVertexUvs[0].push(
         [
-            new Vector2(textureXOffset + lengthIn2d, texelAtTop), 
-            new Vector2(textureXOffset,              texelAtTop), 
-            new Vector2(textureXOffset,              texelAtBottom)
+            new Vector2(textureXOffset + lengthIn2d, verticalTexCoords.top), 
+            new Vector2(textureXOffset,              verticalTexCoords.top), 
+            new Vector2(textureXOffset,              verticalTexCoords.bottom)
         ]
     );
     
@@ -147,7 +190,7 @@ function buildTexture(wad, textureName) {
                             var colorIndex = wad.readByteAt(pointer++);
 
                             // RGB
-                            data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 4 + 0] = palette[colorIndex * 3];
+                            data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 4 + 0] = palette[colorIndex * 3 + 0];
                             data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 4 + 1] = palette[colorIndex * 3 + 1];
                             data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 4 + 2] = palette[colorIndex * 3 + 2];
 
@@ -209,10 +252,10 @@ function materialManager_getMaterial(texname) {
     return material;
 }
 
-function buildSingleWallSectionGeometry(scene, materialManager, texname, faceIndex, v0x, v0y, bottom, v1x, v1y, top, textureXOffset, textureYOffset) {
+function buildSingleWallSectionGeometry(scene, materialManager, texname, faceIndex, v0x, v0y, bottom, v1x, v1y, top, textureXOffset, textureYOffset, wallSection, upperUnpeg, lowerUnpeg) {
     var geometry = new Geometry();
 
-    buildGeometryForWallSection(geometry, 0, v0x, v0y, bottom, v1x, v1y, top, textureXOffset, textureYOffset);
+    buildGeometryForWallSection(geometry, 0, v0x, v0y, bottom, v1x, v1y, top, textureXOffset, textureYOffset, wallSection, upperUnpeg, lowerUnpeg);
 
     geometry.computeFaceNormals();
     geometry.computeVertexNormals();
@@ -240,6 +283,10 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
 
         var vi0 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14));
         var vi1 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 2);
+        var flags = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 4);
+
+        var upperUnpegged = (flags & 8) == 8;
+        var lowerUnpegged = (flags & 16) == 16;
 
         var v0x = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4));
         var v0y = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4) + 2);
@@ -255,7 +302,7 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
 
         if (leftSideDefIndex == -1) {
             if (frontMiddleTexture != '-') {
-                buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset, textureYOffset);
+                buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset, textureYOffset, 1, upperUnpegged, lowerUnpegged);
                 faceIndex++;
             }
         } else {
@@ -281,31 +328,31 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
                 // the good old "Tutti Frutti" effect will have its way.
 
 
-                buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, Math.max(frontSectorFloorHeight, backSectorFloorHeight), v1x, v1y, Math.min(frontSectorCeilingHeight, backSectorCeilingHeight), textureXOffset, textureYOffset);
+                buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, Math.max(frontSectorFloorHeight, backSectorFloorHeight), v1x, v1y, Math.min(frontSectorCeilingHeight, backSectorCeilingHeight), textureXOffset, textureYOffset, 1, upperUnpegged, lowerUnpegged);
                 faceIndex++;
             }
 
             // Bottom section of front side
             if (frontBottomTexture != '-' && frontSectorFloorHeight < backSectorFloorHeight) {
-                buildSingleWallSectionGeometry(scene, materialManager, frontBottomTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, backSectorFloorHeight, textureXOffset, textureYOffset);
+                buildSingleWallSectionGeometry(scene, materialManager, frontBottomTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, backSectorFloorHeight, textureXOffset, textureYOffset, 0, upperUnpegged, lowerUnpegged);
                 faceIndex++;
             }
 
             // Top section of front side
             if (frontTopTexture != '-' && backSectorCeilingHeight < frontSectorCeilingHeight) {
-                buildSingleWallSectionGeometry(scene, materialManager, frontTopTexture, faceIndex, v0x, v0y, backSectorCeilingHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset, textureYOffset);
+                buildSingleWallSectionGeometry(scene, materialManager, frontTopTexture, faceIndex, v0x, v0y, backSectorCeilingHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset, textureYOffset, 2, upperUnpegged, lowerUnpegged);
                 faceIndex++;
             }
 
             // Bottom section of back side
             if (backBottomTexture != '-' && backSectorFloorHeight < frontSectorFloorHeight) {
-                buildSingleWallSectionGeometry(scene, materialManager, backBottomTexture, faceIndex, v1x, v1y, backSectorFloorHeight, v0x, v0y, frontSectorFloorHeight, textureXOffset, textureYOffset);
+                buildSingleWallSectionGeometry(scene, materialManager, backBottomTexture, faceIndex, v1x, v1y, backSectorFloorHeight, v0x, v0y, frontSectorFloorHeight, textureXOffset, textureYOffset, 0, upperUnpegged, lowerUnpegged);
                 faceIndex++;
             }
 
             // Top section of back side
             if (backTopTexture != '-' && frontSectorCeilingHeight < backSectorCeilingHeight) {
-                buildSingleWallSectionGeometry(scene, materialManager, backTopTexture, faceIndex, v1x, v1y, frontSectorCeilingHeight, v0x, v0y, backSectorCeilingHeight, textureXOffset, textureYOffset);
+                buildSingleWallSectionGeometry(scene, materialManager, backTopTexture, faceIndex, v1x, v1y, frontSectorCeilingHeight, v0x, v0y, backSectorCeilingHeight, textureXOffset, textureYOffset, 2, upperUnpegged, lowerUnpegged);
                 faceIndex++;
             }
         }
