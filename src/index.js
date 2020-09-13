@@ -19,7 +19,7 @@ import {
     DirectionalLight} from 'three';
 
 
-import { FirstPersonControls } from 'three/examples/jsm/controls/FirstPersonControls.js';
+import { FpsStyleControls } from './FpsStyleControls.js';
 
 
 var clock = new Clock();
@@ -183,11 +183,11 @@ function buildSingleWallSectionGeometry(scene, materialManager, texname, faceInd
 }
 
 function buildScene(wad, scene, materialManager) {
-    var map01LumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
-    var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", map01LumpInfo.lumpIndex);
-    var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", map01LumpInfo.lumpIndex);
-    var sidedefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SIDEDEFS", map01LumpInfo.lumpIndex);
-    var sectorsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SECTORS", map01LumpInfo.lumpIndex);
+    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
+    var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", mapLumpInfo.lumpIndex);
+    var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", mapLumpInfo.lumpIndex);
+    var sidedefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SIDEDEFS", mapLumpInfo.lumpIndex);
+    var sectorsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SECTORS", mapLumpInfo.lumpIndex);
 
     var numberOfLineDefs = lineDefsLumpInfo.length / 14;
 
@@ -269,9 +269,9 @@ function renderToThreeJs(wad) {
 
     
 
-    var controls = new FirstPersonControls(camera);
-    controls.lookSpeed = 0.4;
-    controls.movementSpeed = 200;
+    var controls = new FpsStyleControls(camera);
+    controls.lookSpeed = 0.2;
+    controls.movementSpeed = 400;
     controls.noFly = true;
     controls.lookVertical = true;
     controls.constrainVertical = true;
@@ -303,15 +303,11 @@ function renderToThreeJs(wad) {
 
     buildScene(wad, scene, materialManager);
 
-    camera.position.y = 1000;
-    camera.position.z = 500;
-    camera.rotation.x = -0.75;
-    camera.rotation.y = -0.2;
+    camera.position.y = 60;
+    camera.position.z = 600;
 
     var time = 0;
-    function animate() {
-
-                
+    function animate() {               
         var delta = clock.getDelta();
         controls.update(delta);
 
@@ -431,9 +427,9 @@ function render2dMapToCanvas(wad) {
 
     var ctx = canvas.getContext('2d');
 
-    var map01LumpInfo =    wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
-    var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", map01LumpInfo.lumpIndex);
-    var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", map01LumpInfo.lumpIndex);
+    var mapLumpInfo =    wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
+    var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", mapLumpInfo.lumpIndex);
+    var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", mapLumpInfo.lumpIndex);
 
     var scaleFactor = 0.25;
     var xOffset = 400;
