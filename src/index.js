@@ -12,7 +12,7 @@ import {
     TextureLoader, 
     DataTexture, 
     RepeatWrapping, 
-    RGBFormat, 
+    RGBAFormat, 
     FaceColors,
     WebGLRenderer,
     AmbientLight,
@@ -95,7 +95,7 @@ function buildTexture(wad, textureName) {
             var width = texWidth;
             var height = texHeight;
 
-            var data = new Uint8Array(3 * width * height);
+            var data = new Uint8Array(4 * width * height);
 
             window.console.log(i + " " + textureName + ", dims " + texWidth + " x " + texHeight);
 
@@ -141,9 +141,13 @@ function buildTexture(wad, textureName) {
                         for (var pixelInRun = 0; pixelInRun < pixelsInRun; pixelInRun++) {
                             var colorIndex = wad.readByteAt(pointer++);
 
-                            data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 3 + 0] = palette[colorIndex * 3];
-                            data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 3 + 1] = palette[colorIndex * 3 + 1];
-                            data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 3 + 2] = palette[colorIndex * 3 + 2];
+                            // RGB
+                            data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 4 + 0] = palette[colorIndex * 3];
+                            data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 4 + 1] = palette[colorIndex * 3 + 1];
+                            data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 4 + 2] = palette[colorIndex * 3 + 2];
+
+                            // Alpha
+                            data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 4 + 3] = 0xff;
 
                             currentRow++;
                         }
@@ -154,7 +158,7 @@ function buildTexture(wad, textureName) {
                 }
             }
 
-            var texture = new DataTexture(data, width, height, RGBFormat);
+            var texture = new DataTexture(data, width, height, RGBAFormat);
 
             texture.wrapS = RepeatWrapping;
             texture.wrapT = RepeatWrapping;
@@ -189,7 +193,8 @@ function materialManager_getMaterial(texname) {
             new MeshBasicMaterial({
                 wireframe: false,
                 vertexColors: FaceColors,
-                map: this.texturesByTexname[texname]
+                map: this.texturesByTexname[texname],
+                transparent: true
             });
 
         this.materialsByTexname[texname] = material;
