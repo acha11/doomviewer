@@ -110,8 +110,6 @@ function buildTexture(wad, textureName) {
 
                 var patchName = wad.readStringAt(pnamesLumpInfo.offset + 4 + patchIndex * 8, 8);
 
-                window.console.log("  Applying patch " + j + ", patch index " + patchIndex + ", with name " + patchName);
-
                 var picLump = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex(patchName, patchStartLumpInfo.lumpIndex);
 
                 var picWidth = wad.readInt16At(picLump.offset);
@@ -119,25 +117,29 @@ function buildTexture(wad, textureName) {
                 var picLeftOffset = wad.readInt16At(picLump.offset + 4);
                 var picTopOffset = wad.readInt16At(picLump.offset + 6);
 
-                window.console.log("    Pic dims: " + picWidth + " x " + picHeight + ", offset " + picLeftOffset + ", " + picTopOffset);
+                window.console.log("  Applying patch " + j + ", patch index " + patchIndex + ", with name " + patchName);
+                window.console.log("    Pic dims: " + picWidth + " x " + picHeight + ", offset " + patchXOffset + ", " + patchYOffset);
 
                 // For each column of the picture (patch)
                 for (var col = 0; col < picWidth; col++) {
                     var colOffset = wad.readInt32At(picLump.offset + 8 + col * 4) + picLump.offset;
 
-                    var currentRow = wad.readByteAt(colOffset);
+                    var pointer = colOffset;
 
-                    var postOffset = colOffset + 1;
-                    
                     do {
-                        var pixelsInRun = wad.readByteAt(postOffset);
+                        var currentRow = wad.readByteAt(pointer++);
 
-                        if (pixelsInRun == 255) {
+                        if (currentRow == 255) {
                             break;
                         }
 
-                        for (var pixelOffset = postOffset + 2; pixelOffset < postOffset + 2 + pixelsInRun; pixelOffset++) {
-                            var colorIndex = wad.readByteAt(pixelOffset);
+                        var pixelsInRun = wad.readByteAt(pointer++);
+
+                        // skip 1 byte for some reason
+                        pointer++;
+
+                        for (var pixelInRun = 0; pixelInRun < pixelsInRun; pixelInRun++) {
+                            var colorIndex = wad.readByteAt(pointer++);
 
                             data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 3 + 0] = palette[colorIndex * 3];
                             data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 3 + 1] = palette[colorIndex * 3 + 1];
@@ -146,7 +148,8 @@ function buildTexture(wad, textureName) {
                             currentRow++;
                         }
 
-                        postOffset += pixelsInRun + 3;
+                        // skip 1 byte for some reason
+                        pointer++;
                     } while (pixelsInRun != 255);
                 }
             }
