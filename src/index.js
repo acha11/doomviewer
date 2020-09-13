@@ -194,7 +194,8 @@ function materialManager_getMaterial(texname) {
                 wireframe: false,
                 vertexColors: FaceColors,
                 map: this.texturesByTexname[texname],
-                transparent: true
+                transparent: false,
+                alphaTest: 0.01
             });
 
         this.materialsByTexname[texname] = material;
