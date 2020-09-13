@@ -9,7 +9,6 @@ import {
     Color, 
     Face3, 
     Mesh,
-    TextureLoader, 
     DataTexture, 
     RepeatWrapping, 
     RGBAFormat, 
@@ -18,12 +17,10 @@ import {
     AmbientLight,
     DirectionalLight} from 'three';
 
-
 import { FpsStyleControls } from './FpsStyleControls.js';
-
+import Stats from 'three/examples/jsm/libs/stats.module.js';
 
 var clock = new Clock();
-
 
 // wallSection:
 //    0 = lower
@@ -365,7 +362,10 @@ function renderToThreeJs(wad) {
     
     var renderer = new WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);    
+    document.body.appendChild(renderer.domElement);
+    
+    var stats = new Stats();
+    document.body.appendChild(stats.dom);
 
     var controls = new FpsStyleControls(camera);
     controls.lookSpeed = 0.2;
@@ -398,7 +398,7 @@ function renderToThreeJs(wad) {
 
     scene.add(directionalLight);
 
-    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
+    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP17", 0);
 
     buildScene(wad, mapLumpInfo, scene, materialManager);
 
@@ -423,6 +423,7 @@ function renderToThreeJs(wad) {
     function animate() {               
         var delta = clock.getDelta();
         controls.update(delta);
+        stats.update();
 
         requestAnimationFrame(animate);
         renderer.render(scene, camera);
