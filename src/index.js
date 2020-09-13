@@ -136,7 +136,7 @@ function buildTexture(wad, textureName) {
                             break;
                         }
 
-                        for (var pixelOffset = postOffset + 1; pixelOffset < postOffset + 3 + pixelsInRun; pixelOffset++) {
+                        for (var pixelOffset = postOffset + 2; pixelOffset < postOffset + 2 + pixelsInRun; pixelOffset++) {
                             var colorIndex = wad.readByteAt(pixelOffset);
 
                             data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 3 + 0] = palette[colorIndex * 3];
@@ -238,14 +238,13 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
         var frontTopTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 4, 8);
         var frontBottomTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 12, 8);
         var frontMiddleTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 20, 8);
-        
-        // If this is a one-sided wall
-        if (leftSideDefIndex == -1) {
-            if (frontMiddleTexture != '-') {
-                buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset, textureYOffset);
-                faceIndex++;
-            }
-        } else {
+
+        if (frontMiddleTexture != '-') {
+            buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset, textureYOffset);
+            faceIndex++;
+        }
+
+        if (leftSideDefIndex != -1) {
             // This is a two-sided wall - read the far-side's details
             var leftSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 28);
             var backSectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + leftSectorIndex * 26 + 0);
@@ -327,7 +326,7 @@ function renderToThreeJs(wad) {
 
     scene.add(directionalLight);
 
-    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP03", 0);
+    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
 
     buildScene(wad, mapLumpInfo, scene, materialManager);
 
