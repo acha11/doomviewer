@@ -44,7 +44,10 @@ var FpsStyleControls = function ( object, domElement ) {
 	this.autoSpeedFactor = 0.0;
 
 	this.mouseX = 0;
-	this.mouseY = 0;
+    this.mouseY = 0;
+    
+    this.xVelocity = 0;
+    this.zVelocity = 0;
 
 	this.moveForward = false;
 	this.moveBackward = false;
@@ -247,14 +250,21 @@ var FpsStyleControls = function ( object, domElement ) {
 
 			var actualMoveSpeed = delta * this.movementSpeed;
 
-			if ( this.moveForward || ( this.autoForward && ! this.moveBackward ) ) this.object.translateZ( - ( actualMoveSpeed + this.autoSpeedFactor ) );
-			if ( this.moveBackward ) this.object.translateZ( actualMoveSpeed );
+			if ( this.moveForward) this.zVelocity = -400;
+			if ( this.moveBackward) this.zVelocity = 400;
 
-			if ( this.moveLeft ) this.object.translateX( - actualMoveSpeed );
-			if ( this.moveRight ) this.object.translateX( actualMoveSpeed );
+			if ( this.moveLeft ) this.xVelocity = -300;
+			if ( this.moveRight ) this.xVelocity = 300;
 
 			if ( this.moveUp ) this.object.translateY( actualMoveSpeed );
 			if ( this.moveDown ) this.object.translateY( - actualMoveSpeed );
+
+
+            this.object.translateX(this.xVelocity * delta);
+            this.object.translateZ(this.zVelocity * delta);
+
+            this.xVelocity *= 0.85;
+            this.zVelocity *= 0.85;
 
 			var actualLookSpeed = delta * this.lookSpeed;
 
