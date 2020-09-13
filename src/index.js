@@ -18,6 +18,7 @@ import {
     DirectionalLight} from 'three';
 
 import { FpsStyleControls } from './FpsStyleControls.js';
+import { Wad } from './Wad.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 
 var clock = new Clock();
@@ -437,99 +438,12 @@ function renderToThreeJs(wad) {
 function loadWad() {
     var myRequest = new Request('doom2.wad');
 
-    var wad = {
-        bytes: null,
-        NumLumps: null,
-        DirectoryOffset: null
-    };
-
-    function readByteAt(offset) { 
-        return wad.bytes[offset];
-    }
-
-    function readInt32At(offset) {
-        var val =
-            (wad.bytes[offset    ] << 0) + 
-            (wad.bytes[offset + 1] << 8) +
-            (wad.bytes[offset + 2] << 16) +
-            (wad.bytes[offset + 3] << 24);
-
-        return val;
-    }
-
-    
-    function readInt16At(offset) {
-        var val =
-            (wad.bytes[offset    ] << 0) + 
-            (wad.bytes[offset + 1] << 8);
-
-        if (val > 32767) {
-            val = -65536 + val;
-        }
-
-        return val;
-    }
-
-    function readStringAt(offset, maxLength) {
-        var s = "";
-
-        var i = 0;
-
-        do {
-            var b = wad.bytes[offset + i];
-
-            if (b) {
-                s += String.fromCharCode(b);
-            }
-
-            i++;
-        } while (i < maxLength);
-
-        return s;
-    }
-
-    function dumpLumps() {
-        for (var i = 0; i < wad.NumLumps; i++) {
-            var directoryEntryOffset = wad.DirectoryOffset + i * 16;
-            
-            var lumpName = readStringAt(directoryEntryOffset + 8, 8);
-
-            window.console.log(lumpName);
-        }
-    }
-
-    function getFirstMatchingLumpAfterSpecifiedLumpIndex(name, startIndex) {
-        for (var i = startIndex; i < wad.NumLumps; i++) {
-            var directoryEntryOffset = wad.DirectoryOffset + i * 16;
-            
-            var lumpName = readStringAt(directoryEntryOffset + 8, 8);
-
-            if (lumpName == name) {
-                return {
-                    offset: readInt32At(directoryEntryOffset),
-                    length: readInt32At(directoryEntryOffset + 4),
-                    name: name,
-                    lumpIndex: i
-                };
-            }
-        }
-    }
-
     return (
         fetch(myRequest)
         .then(response => response.blob())
         .then(blob => blob.arrayBuffer())
         .then(arrayBuffer => {
-            wad.bytes = new Uint8Array(arrayBuffer);
-
-            wad.NumLumps = readInt32At(4);
-            wad.DirectoryOffset = readInt32At(8);
-
-            wad.getFirstMatchingLumpAfterSpecifiedLumpIndex = getFirstMatchingLumpAfterSpecifiedLumpIndex;
-            wad.readByteAt = readByteAt;
-            wad.readInt16At = readInt16At;
-            wad.readInt32At = readInt32At;
-            wad.readStringAt = readStringAt;
+            var wad = new Wad(new Uint8Array(arrayBuffer));
 
             return wad;
         })
