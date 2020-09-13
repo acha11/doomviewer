@@ -256,25 +256,25 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
 
             // Bottom section of front side
             if (frontBottomTexture != '-' && frontSectorFloorHeight < backSectorFloorHeight) {
-                buildSingleWallSectionGeometry(scene, materialManager, frontBottomTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, backSectorFloorHeight, 0, 0);
+                buildSingleWallSectionGeometry(scene, materialManager, frontBottomTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, backSectorFloorHeight, textureXOffset, textureYOffset);
                 faceIndex++;
             }
 
             // Top section of front side
             if (frontTopTexture != '-' && backSectorCeilingHeight < frontSectorCeilingHeight) {
-                buildSingleWallSectionGeometry(scene, materialManager, frontTopTexture, faceIndex, v0x, v0y, backSectorCeilingHeight, v1x, v1y, frontSectorCeilingHeight, 0, 0);
+                buildSingleWallSectionGeometry(scene, materialManager, frontTopTexture, faceIndex, v0x, v0y, backSectorCeilingHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset, textureYOffset);
                 faceIndex++;
             }
 
             // Bottom section of back side
             if (backBottomTexture != '-' && backSectorFloorHeight < frontSectorFloorHeight) {
-                buildSingleWallSectionGeometry(scene, materialManager, backBottomTexture, faceIndex, v1x, v1y, backSectorFloorHeight, v0x, v0y, frontSectorFloorHeight, 0, 0);
+                buildSingleWallSectionGeometry(scene, materialManager, backBottomTexture, faceIndex, v1x, v1y, backSectorFloorHeight, v0x, v0y, frontSectorFloorHeight, textureXOffset, textureYOffset);
                 faceIndex++;
             }
 
             // Top section of back side
             if (backTopTexture != '-' && frontSectorCeilingHeight < backSectorCeilingHeight) {
-                buildSingleWallSectionGeometry(scene, materialManager, backTopTexture, faceIndex, v1x, v1y, frontSectorCeilingHeight, v0x, v0y, backSectorCeilingHeight, 0, 0);
+                buildSingleWallSectionGeometry(scene, materialManager, backTopTexture, faceIndex, v1x, v1y, frontSectorCeilingHeight, v0x, v0y, backSectorCeilingHeight, textureXOffset, textureYOffset);
                 faceIndex++;
             }
         }
