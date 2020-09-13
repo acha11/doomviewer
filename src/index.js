@@ -24,7 +24,7 @@ import { FpsStyleControls } from './FpsStyleControls.js';
 
 var clock = new Clock();
 
-function buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, bottom, v1x, v1y, top) {
+function buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, bottom, v1x, v1y, top, textureXOffset) {
     geometry.vertices.push(new Vector3(v0x, bottom, -v0y));
     geometry.vertices.push(new Vector3(v1x, bottom, -v1y));
     geometry.vertices.push(new Vector3(v1x, top, -v1y));
@@ -85,8 +85,8 @@ function buildTexture(wad, textureName) {
             var texWidth = wad.readInt16At(absoluteOffsetToTextureInfo + 12);
             var texHeight = wad.readInt16At(absoluteOffsetToTextureInfo + 14);
 
-            var width = 64;
-            var height = 128;
+            var width = texWidth;
+            var height = texHeight;
 
             var data = new Uint8Array(3 * width * height);
 
@@ -114,6 +114,7 @@ function buildTexture(wad, textureName) {
 
                 window.console.log("    Pic dims: " + picWidth + " x " + picHeight + ", offset " + picLeftOffset + ", " + picTopOffset);
 
+                // For each column of the picture (patch)
                 for (var col = 0; col < picWidth; col++) {
                     var colOffset = wad.readInt32At(picLump.offset + 8 + col * 4) + picLump.offset;
 
@@ -131,9 +132,9 @@ function buildTexture(wad, textureName) {
                         for (var pixelOffset = postOffset + 3; pixelOffset < postOffset + 3 + pixelsInRun - 2; pixelOffset++) {
                             var colorIndex = wad.readByteAt(pixelOffset);
 
-                            data[((height - currentRow - 1) * width + col) * 3 + 0] = palette[colorIndex * 3];
-                            data[((height - currentRow - 1) * width + col) * 3 + 1] = palette[colorIndex * 3 + 1];
-                            data[((height - currentRow - 1) * width + col) * 3 + 2] = palette[colorIndex * 3 + 2];
+                            data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 3 + 0] = palette[colorIndex * 3];
+                            data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 3 + 1] = palette[colorIndex * 3 + 1];
+                            data[((height - currentRow - 1 - patchYOffset) * width + patchXOffset + col) * 3 + 2] = palette[colorIndex * 3 + 2];
 
                             currentRow++;
                         }
@@ -171,10 +172,10 @@ function materialManager_getMaterial(texname) {
     return material;
 }
 
-function buildSingleWallSectionGeometry(scene, materialManager, texname, faceIndex, v0x, v0y, bottom, v1x, v1y, top) {
+function buildSingleWallSectionGeometry(scene, materialManager, texname, faceIndex, v0x, v0y, bottom, v1x, v1y, top, textureXOffset) {
     var geometry = new Geometry();
 
-    buildGeometryForWallSection(geometry, 0, v0x, v0y, bottom, v1x, v1y, top);
+    buildGeometryForWallSection(geometry, 0, v0x, v0y, bottom, v1x, v1y, top, textureXOffset);
 
     geometry.computeFaceNormals();
     geometry.computeVertexNormals();
@@ -208,6 +209,8 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
         var v1x = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4));
         var v1y = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4) + 2);
 
+        var textureXOffset = wad.readInt16At(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 0, 8);
+
         var frontTopTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 4, 8);
         var frontBottomTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 12, 8);
         var frontMiddleTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 20, 8);
@@ -215,7 +218,7 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
         // If this is a one-sided wall
         if (leftSideDefIndex == -1) {
             if (frontMiddleTexture != '-') {
-                buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, frontSectorCeilingHeight);
+                buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset);
                 faceIndex++;
             }
         } else {
@@ -323,7 +326,6 @@ function renderToThreeJs(wad) {
 
     var time = 0;
     function animate() {               
-        window.console.log(camera.position);
         var delta = clock.getDelta();
         controls.update(delta);
 
