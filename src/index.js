@@ -460,26 +460,123 @@ function render2dMapToCanvas(wad) {
     var mapLumpInfo =    wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
     var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", mapLumpInfo.lumpIndex);
     var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", mapLumpInfo.lumpIndex);
+    var sidedefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SIDEDEFS", mapLumpInfo.lumpIndex);
+    var sectorsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SECTORS", mapLumpInfo.lumpIndex);
 
-    var scaleFactor = 0.25;
-    var xOffset = 400;
-    var yOffset = 800;
+    var scaleFactor = 0.5;
+    var xOffset = 1600 * scaleFactor;
+    var yOffset = 3200 * scaleFactor;
 
     var numberOfLineDefs = lineDefsLumpInfo.length / 14;
+
+    var linesBySector = {
+    };
 
     for (var i = 0; i < numberOfLineDefs; i++) {
         var vi0 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14));
         var vi1 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 2);
+        var rightSideDefIndex = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 10);
+        var leftSideDefIndex = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 12);
+
+        var rightSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 28, 8);
+        var leftSectorIndex = leftSideDefIndex == -1 ? -1 : wad.readInt16At(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 28, 8);
 
         var v0x = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4));
         var v0y = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4) + 2);
         var v1x = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4));
         var v1y = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4) + 2);
 
+        if (!linesBySector[rightSectorIndex]) linesBySector[rightSectorIndex] = [];
+
+        linesBySector[rightSectorIndex].push({v0x: v0x, v0y: v0y, v1x: v1x, v1y: v1y});
+
+        if (leftSectorIndex != -1) {
+            if (!linesBySector[leftSectorIndex]) linesBySector[leftSectorIndex] = [];
+
+            linesBySector[leftSectorIndex].push({v0x: v1x, v0y: v1y, v1x: v0x, v1y: v0y});
+        }
+
         ctx.beginPath();
         ctx.moveTo(v0x * scaleFactor + xOffset, v0y * -scaleFactor + yOffset);
         ctx.lineTo(v1x * scaleFactor + xOffset, v1y * -scaleFactor + yOffset);
         ctx.stroke();
+    }
+
+    // Break sector outline into paths (holes or disjoint outlines should be separate paths)
+    // just the first sector for now
+    for (i = 0; i < 1; i++) {
+        var sectorLines = linesBySector[i];
+
+        // Strategy: assign every line to its own group. Repeatedly merge groups that share
+        // a vertex until there there are no vertices shared between groups.        
+        for (var j = 0; j < sectorLines.length; j++) {
+            sectorLines[j].group = j;
+        }
+
+        var completedAPassWithoutMerging = false;
+
+        while (!completedAPassWithoutMerging) {
+            window.console.log("Beginning pass.");
+            window.console.log(sectorLines);
+            completedAPassWithoutMerging = true;
+            // Look for lines in different groups that share a vertex. Merge their groups.
+            for (var j = 0; j < sectorLines.length; j++) {
+                var a = sectorLines[j];
+
+                for (var k = 1; k < sectorLines.length; k++) {
+                    var b = sectorLines[k];
+
+                    if (a.group == b.group) continue;
+
+                    if ( (a.v0x == b.v0x && a.v0y == b.v0y) ||
+                         (a.v0x == b.v1x && a.v0y == b.v1y) ||
+                         (a.v1x == b.v0x && a.v1y == b.v0y) ||
+                         (a.v1x == b.v1x && a.v1y == b.v1y) ) {
+                        // These points are assigned to different groups, but share a vertex.
+                        // Move any lines in b's group into a's group.
+                        var sourceGroup = b.group;
+
+                        completedAPassWithoutMerging = false;
+
+                        for (var m = 0; m < sectorLines.length; m++) {
+                            var c = sectorLines[m];
+
+                            if (c.group == sourceGroup) {
+                                c.group = a.group;
+                            }
+                        }
+                    }                        
+                }
+            }
+        }
+
+        var groups = {};
+
+        for (var i = 0; i < sectorLines.length; i++) {
+            var a = sectorLines[i];
+
+            if (!groups[a.group]) groups[a.group] = [];
+
+            groups[a.group].push(a);
+        }
+
+        window.console.log(groups);
+
+        var colors = [ "red", "blue", "green", "purple", "black" ];
+        var i = 0
+        for (var key in groups) {
+            var group = groups[key];
+            ctx.strokeStyle = colors[i++]
+        
+            for (var j = 0; j < group.length; j++) {
+                var v = group[j];
+
+                ctx.beginPath();
+                ctx.moveTo(v.v0x * scaleFactor + xOffset, v.v0y * -scaleFactor + yOffset);
+                ctx.lineTo(v.v1x * scaleFactor + xOffset, v.v1y * -scaleFactor + yOffset);
+                ctx.stroke();    
+            }
+        } 
     }
 }
 
