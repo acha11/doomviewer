@@ -109,26 +109,33 @@ var FpsStyleControls = function (object, domElement) {
 	};
 
 	this.onKeyDown = function (event) {
-		event.preventDefault();
+        var handled = false;
+
+        // Make sure that if the user presses ctrl-r, we don't prevent refresh
+        if (event.ctrlKey) return;
 
 		switch (event.keyCode) {
 			case 38: /*up*/
-			case 87: /*W*/ this.moveForward = true; break;
+			case 87: /*W*/ this.moveForward = true; handled = true; break;
 
-            case 37: /*left*/ this.turnLeft = true; break;
+            case 37: /*left*/ this.turnLeft = true; handled = true; break;
             
-			case 65: /*A*/ this.moveLeft = true; break;
+			case 65: /*A*/ this.moveLeft = true; handled = true; break;
 
 			case 40: /*down*/
-			case 83: /*S*/ this.moveBackward = true; break;
+			case 83: /*S*/ this.moveBackward = true; handled = true; break;
 
-            case 39: /*right*/ this.turnRight = true; break;
+            case 39: /*right*/ this.turnRight = true; handled = true; break;
             
-			case 68: /*D*/ this.moveRight = true; break;
+			case 68: /*D*/ this.moveRight = true; handled = true; break;
 
-			case 82: /*R*/ this.moveUp = true; break;
-			case 70: /*F*/ this.moveDown = true; break;
-		}
+			case 82: /*R*/ this.moveUp = true; handled = true; break;
+			case 70: /*F*/ this.moveDown = true; handled = true; break;
+        }
+        
+        if (handled) {
+		    event.preventDefault();
+        }
 	};
 
 	this.onKeyUp = function (event) {

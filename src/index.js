@@ -182,8 +182,7 @@ function buildSingleWallSectionGeometry(scene, materialManager, texname, faceInd
     scene.add(new Mesh(geometry, materialManager.getMaterial(texname)));
 }
 
-function buildScene(wad, scene, materialManager) {
-    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
+function buildScene(wad, mapLumpInfo, scene, materialManager) {
     var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", mapLumpInfo.lumpIndex);
     var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", mapLumpInfo.lumpIndex);
     var sidedefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SIDEDEFS", mapLumpInfo.lumpIndex);
@@ -301,13 +300,30 @@ function renderToThreeJs(wad) {
 
     scene.add(directionalLight);
 
-    buildScene(wad, scene, materialManager);
+    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
 
-    camera.position.y = 60;
-    camera.position.z = 600;
+    buildScene(wad, mapLumpInfo, scene, materialManager);
+
+    var thingsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("THINGS", mapLumpInfo.lumpIndex);
+
+    // Look for p1 start thing
+    for (var thingIndex = 0; thingIndex < thingsLumpInfo.length / 10; thingIndex++) {
+        var thingOffset = thingsLumpInfo.offset + 10 * thingIndex;
+
+        var thingType = wad.readInt16At(thingOffset + 6);
+
+        if (thingType == 1) {
+            camera.position.x = wad.readInt16At(thingOffset + 0);
+
+            // TODO: Set camera height based on floor height of sector we're in
+            camera.position.y = 90;
+            camera.position.z = wad.readInt16At(thingOffset + 2) * -1;
+        }
+    }
 
     var time = 0;
     function animate() {               
+        window.console.log(camera.position);
         var delta = clock.getDelta();
         controls.update(delta);
 
