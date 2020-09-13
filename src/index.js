@@ -122,6 +122,11 @@ function buildTexture(wad, textureName) {
 
                 // For each column of the picture (patch)
                 for (var col = 0; col < picWidth; col++) {
+                    // Don't copy past the right edge of the texture
+                    if (patchXOffset + col >= texWidth) {
+                        continue;
+                    }
+
                     var colOffset = wad.readInt32At(picLump.offset + 8 + col * 4) + picLump.offset;
 
                     var pointer = colOffset;
@@ -265,6 +270,17 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
 
             // Middle section of front side
             if (frontMiddleTexture != '-') {
+                // TODO: Correctly handle transparent textures like those to the player's left (near the chainsaw) at the 
+                // start of Doom 2 MAP01 as per following text from unofficial doom spec:
+                // There are some transparent textures which can be used as middle textures
+                // on 2-sided sidedefs (between sectors). These textures need to be composed
+                // of a single patch (see [8-4]), and note that on a very tall wall, they
+                // will NOT be tiled. Only one will be placed, at the spot determined by
+                // the "lower unpegged" flag being on/off and the sidedef's y offset. And
+                // if a transparent texture is used as an upper or lower texture, then
+                // the good old "Tutti Frutti" effect will have its way.
+
+
                 buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, Math.max(frontSectorFloorHeight, backSectorFloorHeight), v1x, v1y, Math.min(frontSectorCeilingHeight, backSectorCeilingHeight), textureXOffset, textureYOffset);
                 faceIndex++;
             }
@@ -299,15 +315,10 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
 function renderToThreeJs(wad) {
     var scene = new Scene();
     var camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 20000);
-
     
     var renderer = new WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-
-
-
-    
+    document.body.appendChild(renderer.domElement);    
 
     var controls = new FpsStyleControls(camera);
     controls.lookSpeed = 0.2;
@@ -319,7 +330,6 @@ function renderToThreeJs(wad) {
     controls.verticalMax = 2.0;
     controls.lon = -150;
     controls.lat = 120;
-
 
     var materialManager = {
         texturesByTexname: {},
