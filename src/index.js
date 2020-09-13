@@ -248,12 +248,12 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
         var frontBottomTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 12, 8);
         var frontMiddleTexture = wad.readStringAt(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 20, 8);
 
-        if (frontMiddleTexture != '-') {
-            buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset, textureYOffset);
-            faceIndex++;
-        }
-
-        if (leftSideDefIndex != -1) {
+        if (leftSideDefIndex == -1) {
+            if (frontMiddleTexture != '-') {
+                buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset, textureYOffset);
+                faceIndex++;
+            }
+        } else {
             // This is a two-sided wall - read the far-side's details
             var leftSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 28);
             var backSectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + leftSectorIndex * 26 + 0);
@@ -262,6 +262,12 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
             var backTopTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 4, 8);
             var backBottomTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 12, 8);
             var backMiddleTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 20, 8);
+
+            // Middle section of front side
+            if (frontMiddleTexture != '-') {
+                buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, Math.max(frontSectorFloorHeight, backSectorFloorHeight), v1x, v1y, Math.min(frontSectorCeilingHeight, backSectorCeilingHeight), textureXOffset, textureYOffset);
+                faceIndex++;
+            }
 
             // Bottom section of front side
             if (frontBottomTexture != '-' && frontSectorFloorHeight < backSectorFloorHeight) {
