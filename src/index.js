@@ -272,6 +272,70 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
 
     var numberOfLineDefs = lineDefsLumpInfo.length / 14;
 
+    // Build floors
+    var sectorInfo = triangulateSectors(wad, mapLumpInfo);
+
+    for (var sectorIndex in sectorInfo) {
+        var sector = sectorInfo[sectorIndex];
+
+        var floorHeight = wad.readInt16At(sectorsLumpInfo.offset + 26 * sectorIndex);
+        var ceilingHeight = wad.readInt16At(sectorsLumpInfo.offset + 26 * sectorIndex + 2);
+
+        // Floor
+        var geometry = new Geometry();
+
+        var vertices = sector.vertices;
+        var indices = sector.triangleIndices;
+
+        for (var i = 0; i < indices.length; i++) {
+            geometry.vertices.push(new Vector3(vertices[indices[i] * 2], floorHeight, -vertices[indices[i] * 2 + 1]));
+        }
+    
+        var normal = new Vector3(0, 0, 1);
+        var color = new Color(0xffffffff);
+        var materialIndex = 0;
+
+        for (var i = 0; i < indices.length; i += 3) {
+            geometry.faces.push(
+                new Face3(i, i + 1, i + 2, normal, color, materialIndex)
+            );
+        }
+
+        geometry.computeFaceNormals();
+        geometry.computeVertexNormals();
+
+        scene.add(new Mesh(geometry, materialManager.getMaterial("BRONZE1")));
+
+        // Ceiling
+        var geometry = new Geometry();
+
+        var vertices = sector.vertices;
+        var indices = sector.triangleIndices;
+
+        for (var i = indices.length - 1; i >= 0; i--) {
+            geometry.vertices.push(new Vector3(vertices[indices[i] * 2], ceilingHeight, -vertices[indices[i] * 2 + 1]));
+        }
+    
+        var normal = new Vector3(0, 0, 1);
+        var color = new Color(0xffffffff);
+        var materialIndex = 0;
+
+        for (var i = 0; i < indices.length; i += 3) {
+            geometry.faces.push(
+                new Face3(i, i + 1, i + 2, normal, color, materialIndex)
+            );
+        }
+
+        geometry.computeFaceNormals();
+        geometry.computeVertexNormals();
+
+        scene.add(new Mesh(geometry, materialManager.getMaterial("BRONZE1")));
+
+    }
+
+
+    // Build walls
+
     var faceIndex = 0;
 
     for (var i = 0; i < numberOfLineDefs; i++) {
@@ -402,7 +466,7 @@ function renderToThreeJs(wad) {
 
     scene.add(directionalLight);
 
-    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP17", 0);
+    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
 
     buildScene(wad, mapLumpInfo, scene, materialManager);
 
@@ -781,5 +845,5 @@ function canvas_arrow(context, fromx, fromy, tox, toy) {
 }
 
 
-loadWad().then(render2dMapToCanvas);
-//loadWad().then(renderToThreeJs);
+//loadWad().then(render2dMapToCanvas);
+loadWad().then(renderToThreeJs);
