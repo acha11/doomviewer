@@ -529,9 +529,8 @@ function render2dMapToCanvas(wad) {
         var MaxPasses = 25;
 
         while (!completedAPassWithoutMerging && passes < MaxPasses) {
-            window.console.log("Beginning pass #" + (passes++));
-            window.console.log(sectorLines);
             completedAPassWithoutMerging = true;
+            
             // Look for lines in different groups that share a vertex. Merge their groups.
             for (var j = 0; j < sectorLines.length; j++) {
                 var a = sectorLines[j];
@@ -708,12 +707,11 @@ function render2dMapToCanvas(wad) {
 
 function renderTriangles(ctx, verticesForEarcut, triangles, scaleFactor, xOffset, yOffset)
 {
-    ctx.beginPath();
     ctx.fillStyle  = "yellow";
     ctx.strokeStyle  = "grey";
 
-
     for (var i = 0; i < triangles.length; i += 3) {
+        ctx.beginPath();
         
         var x = verticesForEarcut[triangles[i] * 2];
         var y = verticesForEarcut[triangles[i] * 2 + 1];
@@ -730,6 +728,7 @@ function renderTriangles(ctx, verticesForEarcut, triangles, scaleFactor, xOffset
 
         ctx.lineTo(x * scaleFactor + xOffset, y * -scaleFactor + yOffset);
 
+        ctx.closePath();
         ctx.fill();
         ctx.stroke();
     }
