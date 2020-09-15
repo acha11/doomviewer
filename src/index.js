@@ -20,6 +20,7 @@ import {
 import { FpsStyleControls } from './FpsStyleControls.js';
 import { Wad } from './Wad.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
+import earcut from 'earcut';
 
 var clock = new Clock();
 
@@ -513,8 +514,8 @@ function render2dMapToCanvas(wad) {
     // just the first sector for now
     var sectorToShow = 0;
 
-    for (i = sectorToShow; i < sectorToShow + 1; i++) {
-        var sectorLines = linesBySector[i];
+    for (var sectorIndex = sectorToShow; sectorIndex < sectorToShow + 1; sectorIndex++) {
+        var sectorLines = linesBySector[sectorIndex];
 
         // Strategy: assign every line to its own group. Repeatedly merge groups that share
         // a vertex until there there are no vertices shared between groups.        
@@ -648,6 +649,37 @@ function render2dMapToCanvas(wad) {
             (accumulatedAngle > 0 ? perimeters : holes).push(path);
         }
 
+        var verticesForEarcut = [];
+        var holeStartIndexesForEarcut = [];
+
+        for (var i = 0; i < perimeters.length; i++) {
+            var path = perimeters[i];
+
+            for (var j = 0; j < path.length; j++) {        
+                var v = path[j];
+                
+                verticesForEarcut.push(v.v0x);
+                verticesForEarcut.push(v.v0y);
+            }
+        }
+
+        for (var i = 0; i < holes.length; i++) {
+            var path = holes[i];
+
+            holeStartIndexesForEarcut.push(verticesForEarcut.length / 2);
+
+            for (var j = 0; j < path.length; j++) {
+                var v = path[j];
+
+                verticesForEarcut.push(v.v0x);
+                verticesForEarcut.push(v.v0y);
+            }
+        }
+
+        var triangles = earcut(verticesForEarcut, holeStartIndexesForEarcut, 2);
+
+        renderTriangles(ctx, verticesForEarcut, triangles, scaleFactor, xOffset, yOffset);
+        
         ctx.strokeStyle = "blue";
 
         for (var i = 0; i < perimeters.length; i++) {
@@ -671,6 +703,35 @@ function render2dMapToCanvas(wad) {
                 canvas_arrow(ctx, v.v0x * scaleFactor + xOffset, v.v0y * -scaleFactor + yOffset, v.v1x * scaleFactor + xOffset, v.v1y * -scaleFactor + yOffset);
             }
         }
+    }
+}
+
+function renderTriangles(ctx, verticesForEarcut, triangles, scaleFactor, xOffset, yOffset)
+{
+    ctx.beginPath();
+    ctx.fillStyle  = "yellow";
+    ctx.strokeStyle  = "grey";
+
+
+    for (var i = 0; i < triangles.length; i += 3) {
+        
+        var x = verticesForEarcut[triangles[i] * 2];
+        var y = verticesForEarcut[triangles[i] * 2 + 1];
+
+        ctx.moveTo(x * scaleFactor + xOffset, y * -scaleFactor + yOffset);
+
+        var x = verticesForEarcut[triangles[i + 1] * 2];
+        var y = verticesForEarcut[triangles[i + 1] * 2 + 1];
+
+        ctx.lineTo(x * scaleFactor + xOffset, y * -scaleFactor + yOffset);
+
+        var x = verticesForEarcut[triangles[i + 2] * 2];
+        var y = verticesForEarcut[triangles[i + 2] * 2 + 1];
+
+        ctx.lineTo(x * scaleFactor + xOffset, y * -scaleFactor + yOffset);
+
+        ctx.fill();
+        ctx.stroke();
     }
 }
 
