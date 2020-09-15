@@ -488,11 +488,18 @@ function render2dMapToCanvas(wad) {
 
         if (!linesBySector[rightSectorIndex]) linesBySector[rightSectorIndex] = [];
 
+        // If the sector is on the right-hand side of the line as we travel along it, then we
+        // add the vertices in their existing order (v0 -> v1), so that as we travel along
+        // the lines, we keep the "inside" of the sector on our right.
         linesBySector[rightSectorIndex].push({v0x: v0x, v0y: v0y, v1x: v1x, v1y: v1y});
 
         if (leftSectorIndex != -1) {
             if (!linesBySector[leftSectorIndex]) linesBySector[leftSectorIndex] = [];
 
+            // But if the sector is on the left-hand side of the line as we travel along it,
+            // then we add the vertices in reverse order (v1 -> v0), so that we get the
+            // orientation we want (i.e., as we travel along the lines, we keep the "inside"
+            // of the sector on our right)
             linesBySector[leftSectorIndex].push({v0x: v1x, v0y: v1y, v1x: v0x, v1y: v0y});
         }
 
@@ -504,7 +511,9 @@ function render2dMapToCanvas(wad) {
 
     // Break sector outline into paths (holes or disjoint outlines should be separate paths)
     // just the first sector for now
-    for (i = 0; i < 1; i++) {
+    var sectorToShow = 0;
+
+    for (i = sectorToShow; i < sectorToShow + 1; i++) {
         var sectorLines = linesBySector[i];
 
         // Strategy: assign every line to its own group. Repeatedly merge groups that share
@@ -515,8 +524,11 @@ function render2dMapToCanvas(wad) {
 
         var completedAPassWithoutMerging = false;
 
-        while (!completedAPassWithoutMerging) {
-            window.console.log("Beginning pass.");
+        var passes = 0;
+        var MaxPasses = 25;
+
+        while (!completedAPassWithoutMerging && passes < MaxPasses) {
+            window.console.log("Beginning pass #" + (passes++));
             window.console.log(sectorLines);
             completedAPassWithoutMerging = true;
             // Look for lines in different groups that share a vertex. Merge their groups.
@@ -550,35 +562,132 @@ function render2dMapToCanvas(wad) {
             }
         }
 
-        var groups = {};
-
-        for (var i = 0; i < sectorLines.length; i++) {
-            var a = sectorLines[i];
-
-            if (!groups[a.group]) groups[a.group] = [];
-
-            groups[a.group].push(a);
+        if (!completedAPassWithoutMerging) {
+            throw "Failed to group.";
         }
 
-        window.console.log(groups);
+        // Build a map that contains one entry for each of the 'paths' (perimeters/holes)
+        var paths = {};
 
-        var colors = [ "red", "blue", "green", "purple", "black" ];
-        var i = 0
-        for (var key in groups) {
-            var group = groups[key];
-            ctx.strokeStyle = colors[i++]
-        
-            for (var j = 0; j < group.length; j++) {
-                var v = group[j];
+        for (var k = 0; k < sectorLines.length; k++) {
+            var a = sectorLines[k];
 
-                ctx.beginPath();
-                ctx.moveTo(v.v0x * scaleFactor + xOffset, v.v0y * -scaleFactor + yOffset);
-                ctx.lineTo(v.v1x * scaleFactor + xOffset, v.v1y * -scaleFactor + yOffset);
-                ctx.stroke();    
+            if (!paths[a.group]) paths[a.group] = [];
+
+            paths[a.group].push(a);
+        }
+
+        // Go through each of the paths and sort the lines in the path
+        for (var key in paths) {
+            var path = paths[key];
+
+            var sortedLines = [];
+
+            var elementToMove = path[0];
+
+            path.splice(path.indexOf(elementToMove), 1);
+
+            sortedLines.push(elementToMove);
+
+            while (path.length > 0) {
+                var lastElement = sortedLines[sortedLines.length - 1];
+
+                // Go looking for a line starting at the endpoint of the last element
+                var match = null;
+                for (var j = 0; j < path.length; j++) {
+                    var e = path[j];
+
+                    if (e.v0x == lastElement.v1x && e.v0y == lastElement.v1y) {
+                        match = e;
+
+                        break;
+                    }
+                }
+
+                if (!match) throw "Could not find a line starting at end of last element.";
+
+                path.splice(path.indexOf(match), 1);
+
+                sortedLines.push(match);
             }
-        } 
+
+            paths[key] = sortedLines;
+        }
+
+        window.console.log(paths);
+
+        var perimeters = [];
+        var holes = [];
+
+        // Go through each of the paths and calculate the total internal angle, and add the
+        // path to the perimeters or holes list as appropriate
+        for (var key in paths) {
+            var path = paths[key];
+
+            var accumulatedAngle = 0;
+
+            for (var j = 0; j < path.length; j++) {
+                var l1 = path[j];
+                var l2 = path[(j + 1) % path.length];
+
+                var line1 = new Vector2(l1.v1x - l1.v0x, l1.v1y - l1.v0y).normalize();
+                var line2 = new Vector2(l2.v1x - l2.v0x, l2.v1y - l2.v0y).normalize();
+                
+                var theta = Math.acos(line1.x * line2.x + line1.y * line2.y);
+
+                theta = theta * 180 / Math.PI;
+
+                // Theta is now (unsigned) angle between lien1 and line2
+                
+                // Flip theta if it's a CCW rotation.
+                if (line1.x * line2.y - line1.y * line2.x > 0) theta *= -1;
+
+                accumulatedAngle += theta;
+            }
+
+            (accumulatedAngle > 0 ? perimeters : holes).push(path);
+        }
+
+        ctx.strokeStyle = "blue";
+
+        for (var i = 0; i < perimeters.length; i++) {
+            var path = perimeters[i];
+
+            for (var j = 0; j < path.length; j++) {        
+                var v = path[j];
+                
+                canvas_arrow(ctx, v.v0x * scaleFactor + xOffset, v.v0y * -scaleFactor + yOffset, v.v1x * scaleFactor + xOffset, v.v1y * -scaleFactor + yOffset);
+            }
+        }
+
+        ctx.strokeStyle = "red";
+
+        for (var i = 0; i < holes.length; i++) {
+            var path = holes[i];
+
+            for (var j = 0; j < path.length; j++) {        
+                var v = path[j];
+                
+                canvas_arrow(ctx, v.v0x * scaleFactor + xOffset, v.v0y * -scaleFactor + yOffset, v.v1x * scaleFactor + xOffset, v.v1y * -scaleFactor + yOffset);
+            }
+        }
     }
 }
 
-//loadWad().then(render2dMapToCanvas);
-loadWad().then(renderToThreeJs);
+function canvas_arrow(context, fromx, fromy, tox, toy) {
+    var headlen = 10; // length of head in pixels
+    var dx = tox - fromx;
+    var dy = toy - fromy;
+    var angle = Math.atan2(dy, dx);
+    context.beginPath();
+    context.moveTo(fromx, fromy);
+    context.lineTo(tox, toy);
+    context.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+    context.moveTo(tox, toy);
+    context.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+    context.stroke();
+}
+
+
+loadWad().then(render2dMapToCanvas);
+//loadWad().then(renderToThreeJs);
