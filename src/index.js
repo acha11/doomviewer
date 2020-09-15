@@ -451,28 +451,17 @@ function loadWad() {
     );
 }
 
-function render2dMapToCanvas(wad) {
-    var canvas = document.getElementById('mainCanvas');
-
-    canvas.style.display = "inline-block";
-
-    var ctx = canvas.getContext('2d');
-
-    var mapLumpInfo =    wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
+function triangulateSectors(wad, mapLumpInfo) {
     var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", mapLumpInfo.lumpIndex);
     var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", mapLumpInfo.lumpIndex);
     var sidedefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SIDEDEFS", mapLumpInfo.lumpIndex);
-    var sectorsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SECTORS", mapLumpInfo.lumpIndex);
-
-    var scaleFactor = 0.5;
-    var xOffset = 1600 * scaleFactor;
-    var yOffset = 3200 * scaleFactor;
 
     var numberOfLineDefs = lineDefsLumpInfo.length / 14;
 
     var linesBySector = {
     };
 
+    // Build a map from sector id to the lines for that sector
     for (var i = 0; i < numberOfLineDefs; i++) {
         var vi0 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14));
         var vi1 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 2);
@@ -503,18 +492,13 @@ function render2dMapToCanvas(wad) {
             // of the sector on our right)
             linesBySector[leftSectorIndex].push({v0x: v1x, v0y: v1y, v1x: v0x, v1y: v0y});
         }
-
-        ctx.beginPath();
-        ctx.moveTo(v0x * scaleFactor + xOffset, v0y * -scaleFactor + yOffset);
-        ctx.lineTo(v1x * scaleFactor + xOffset, v1y * -scaleFactor + yOffset);
-        ctx.stroke();
     }
 
-    // Break sector outline into paths (holes or disjoint outlines should be separate paths)
-    // just the first sector for now
-    var sectorToShow = 0;
+    var sectorInfo = {};
 
-    for (var sectorIndex = sectorToShow; sectorIndex < sectorToShow + 1; sectorIndex++) {
+    // For each sector
+    for (var sectorIndex in linesBySector) {
+        // Break sector outline into paths (holes or disjoint outlines should be separate paths)
         var sectorLines = linesBySector[sectorIndex];
 
         // Strategy: assign every line to its own group. Repeatedly merge groups that share
@@ -530,7 +514,7 @@ function render2dMapToCanvas(wad) {
 
         while (!completedAPassWithoutMerging && passes < MaxPasses) {
             completedAPassWithoutMerging = true;
-            
+
             // Look for lines in different groups that share a vertex. Merge their groups.
             for (var j = 0; j < sectorLines.length; j++) {
                 var a = sectorLines[j];
@@ -614,8 +598,6 @@ function render2dMapToCanvas(wad) {
             paths[key] = sortedLines;
         }
 
-        window.console.log(paths);
-
         var perimeters = [];
         var holes = [];
 
@@ -648,7 +630,7 @@ function render2dMapToCanvas(wad) {
             (accumulatedAngle > 0 ? perimeters : holes).push(path);
         }
 
-        var verticesForEarcut = [];
+        var vertices = [];
         var holeStartIndexesForEarcut = [];
 
         for (var i = 0; i < perimeters.length; i++) {
@@ -657,45 +639,95 @@ function render2dMapToCanvas(wad) {
             for (var j = 0; j < path.length; j++) {        
                 var v = path[j];
                 
-                verticesForEarcut.push(v.v0x);
-                verticesForEarcut.push(v.v0y);
+                vertices.push(v.v0x);
+                vertices.push(v.v0y);
             }
         }
 
         for (var i = 0; i < holes.length; i++) {
             var path = holes[i];
 
-            holeStartIndexesForEarcut.push(verticesForEarcut.length / 2);
+            holeStartIndexesForEarcut.push(vertices.length / 2);
 
             for (var j = 0; j < path.length; j++) {
                 var v = path[j];
 
-                verticesForEarcut.push(v.v0x);
-                verticesForEarcut.push(v.v0y);
+                vertices.push(v.v0x);
+                vertices.push(v.v0y);
             }
         }
 
-        var triangles = earcut(verticesForEarcut, holeStartIndexesForEarcut, 2);
+        var triangles = earcut(vertices, holeStartIndexesForEarcut, 2);
 
-        renderTriangles(ctx, verticesForEarcut, triangles, scaleFactor, xOffset, yOffset);
+        sectorInfo[sectorIndex] = {
+            vertices: vertices,
+            triangleIndices: triangles,
+            perimeters: perimeters,
+            holes: holes
+        };
+    }
+
+    return sectorInfo;
+}
+
+function render2dMapToCanvas(wad) {
+    var canvas = document.getElementById('mainCanvas');
+
+    canvas.style.display = "inline-block";
+
+    var ctx = canvas.getContext('2d');
+
+    var mapLumpInfo =    wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
+    var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", mapLumpInfo.lumpIndex);
+    var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", mapLumpInfo.lumpIndex);
+
+    var scaleFactor = 0.5;
+    var xOffset = 1600 * scaleFactor;
+    var yOffset = 3200 * scaleFactor;
+
+    var numberOfLineDefs = lineDefsLumpInfo.length / 14;
+
+    // Render all linedefs
+    for (var i = 0; i < numberOfLineDefs; i++) {
+        var vi0 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14));
+        var vi1 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 2);
+
+        var v0x = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4));
+        var v0y = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4) + 2);
+        var v1x = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4));
+        var v1y = wad.readInt16At(vertexesLumpInfo.offset + (vi1 * 4) + 2);
+
+        ctx.beginPath();
+        ctx.moveTo(v0x * scaleFactor + xOffset, v0y * -scaleFactor + yOffset);
+        ctx.lineTo(v1x * scaleFactor + xOffset, v1y * -scaleFactor + yOffset);
+        ctx.closePath();
+        ctx.stroke();
+    }
+
+    var sectorInfo = triangulateSectors(wad, mapLumpInfo);
+
+    for (var sectorIndex in sectorInfo) {
+        var sector = sectorInfo[sectorIndex];
+
+        renderTriangles(ctx, sector.vertices, sector.triangleIndices, scaleFactor, xOffset, yOffset);
         
         ctx.strokeStyle = "blue";
-
-        for (var i = 0; i < perimeters.length; i++) {
-            var path = perimeters[i];
-
+    
+        for (var i = 0; i < sector.perimeters.length; i++) {
+            var path = sector.perimeters[i];
+    
             for (var j = 0; j < path.length; j++) {        
                 var v = path[j];
                 
                 canvas_arrow(ctx, v.v0x * scaleFactor + xOffset, v.v0y * -scaleFactor + yOffset, v.v1x * scaleFactor + xOffset, v.v1y * -scaleFactor + yOffset);
             }
         }
-
+    
         ctx.strokeStyle = "red";
-
-        for (var i = 0; i < holes.length; i++) {
-            var path = holes[i];
-
+    
+        for (var i = 0; i < sector.holes.length; i++) {
+            var path = sector.holes[i];
+    
             for (var j = 0; j < path.length; j++) {        
                 var v = path[j];
                 
@@ -705,7 +737,7 @@ function render2dMapToCanvas(wad) {
     }
 }
 
-function renderTriangles(ctx, verticesForEarcut, triangles, scaleFactor, xOffset, yOffset)
+function renderTriangles(ctx, vertices, triangles, scaleFactor, xOffset, yOffset)
 {
     ctx.fillStyle  = "yellow";
     ctx.strokeStyle  = "grey";
@@ -713,18 +745,18 @@ function renderTriangles(ctx, verticesForEarcut, triangles, scaleFactor, xOffset
     for (var i = 0; i < triangles.length; i += 3) {
         ctx.beginPath();
         
-        var x = verticesForEarcut[triangles[i] * 2];
-        var y = verticesForEarcut[triangles[i] * 2 + 1];
+        var x = vertices[triangles[i] * 2];
+        var y = vertices[triangles[i] * 2 + 1];
 
         ctx.moveTo(x * scaleFactor + xOffset, y * -scaleFactor + yOffset);
 
-        var x = verticesForEarcut[triangles[i + 1] * 2];
-        var y = verticesForEarcut[triangles[i + 1] * 2 + 1];
+        var x = vertices[triangles[i + 1] * 2];
+        var y = vertices[triangles[i + 1] * 2 + 1];
 
         ctx.lineTo(x * scaleFactor + xOffset, y * -scaleFactor + yOffset);
 
-        var x = verticesForEarcut[triangles[i + 2] * 2];
-        var y = verticesForEarcut[triangles[i + 2] * 2 + 1];
+        var x = vertices[triangles[i + 2] * 2];
+        var y = vertices[triangles[i + 2] * 2 + 1];
 
         ctx.lineTo(x * scaleFactor + xOffset, y * -scaleFactor + yOffset);
 
