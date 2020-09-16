@@ -594,7 +594,7 @@ function renderToThreeJs(wad) {
 
     scene.add(directionalLight);
 
-    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP05", 0);
+    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP02", 0);
 
     buildScene(wad, mapLumpInfo, scene, materialManager);
 
@@ -662,6 +662,12 @@ function triangulateSectors(wad, mapLumpInfo) {
 
         var rightSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + rightSideDefIndex * 30 + 28, 8);
         var leftSectorIndex = leftSideDefIndex == -1 ? -1 : wad.readInt16At(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 28, 8);
+
+        // Filter out any lines that are "internal" to a sector, i.e. have sector inside on 
+        // both sides of them.
+        if (leftSectorIndex == rightSectorIndex) {
+            continue;
+        }
 
         var v0x = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4));
         var v0y = wad.readInt16At(vertexesLumpInfo.offset + (vi0 * 4) + 2);
@@ -880,7 +886,7 @@ function render2dMapToCanvas(wad) {
 
     var ctx = canvas.getContext('2d');
 
-    var mapLumpInfo =    wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
+    var mapLumpInfo =    wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP02", 0);
     var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", mapLumpInfo.lumpIndex);
     var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", mapLumpInfo.lumpIndex);
 
