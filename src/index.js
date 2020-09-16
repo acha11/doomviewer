@@ -71,7 +71,7 @@ function calculateTopAndBottomTexelCoords(textureYOffset, wallSection, upperUnpe
     };
 }
 
-function buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, bottom, v1x, v1y, top, textureXOffset, textureYOffset, wallSection, upperUnpeg, lowerUnpeg, ceilingHeight) {
+function buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, bottom, v1x, v1y, top, textureXOffset, textureYOffset, wallSection, upperUnpeg, lowerUnpeg, ceilingHeight, lightLevel) {
     geometry.vertices.push(new Vector3(v0x, bottom, -v0y));
     geometry.vertices.push(new Vector3(v1x, bottom, -v1y));
     geometry.vertices.push(new Vector3(v1x, top, -v1y));
@@ -80,7 +80,13 @@ function buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, bottom, v1x,
     geometry.vertices.push(new Vector3(v0x, bottom, -v0y));
 
     var normal = new Vector3(0, 0, 1);
-    var color = new Color(0xffffffff);
+
+    var color = new Color(
+        (lightLevel << 24) |
+        (lightLevel << 16) |
+        (lightLevel <<  8) |
+        (lightLevel <<  0));
+
     var materialIndex = 0;
     geometry.faces.push(new Face3(faceIndex * 6 + 0, faceIndex * 6 + 1, faceIndex * 6 + 2, normal, color, materialIndex));
 
@@ -337,10 +343,10 @@ function materialManager_getMaterial(texname) {
     return material;
 }
 
-function buildSingleWallSectionGeometry(scene, materialManager, texname, faceIndex, v0x, v0y, bottom, v1x, v1y, top, textureXOffset, textureYOffset, wallSection, upperUnpeg, lowerUnpeg, ceilingHeight) {
+function buildSingleWallSectionGeometry(scene, materialManager, texname, faceIndex, v0x, v0y, bottom, v1x, v1y, top, textureXOffset, textureYOffset, wallSection, upperUnpeg, lowerUnpeg, ceilingHeight, lightLevel) {
     var geometry = new Geometry();
 
-    buildGeometryForWallSection(geometry, 0, v0x, v0y, bottom, v1x, v1y, top, textureXOffset, textureYOffset, wallSection, upperUnpeg, lowerUnpeg, ceilingHeight);
+    buildGeometryForWallSection(geometry, 0, v0x, v0y, bottom, v1x, v1y, top, textureXOffset, textureYOffset, wallSection, upperUnpeg, lowerUnpeg, ceilingHeight, lightLevel);
 
     geometry.computeFaceNormals();
     geometry.computeVertexNormals();
@@ -364,6 +370,7 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
 
         var floorHeight = wad.readInt16At(sectorsLumpInfo.offset + 26 * sectorIndex);
         var ceilingHeight = wad.readInt16At(sectorsLumpInfo.offset + 26 * sectorIndex + 2);
+        var lightlevel = wad.readByteAt(sectorsLumpInfo.offset + 26 * sectorIndex + 20);
 
         var floorFlatName = wad.readStringAt(sectorsLumpInfo.offset + 26 * sectorIndex + 4, 8);
 
@@ -382,8 +389,15 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
                 geometry.vertices.push(new Vector3(vertices[indices[i] * 2], floorHeight, -vertices[indices[i] * 2 + 1]));
             }
         
+            window.console.log(lightlevel);
+
             var normal = new Vector3(0, 0, 1);
-            var color = new Color(0xffffffff);
+            var color = new Color(
+                (lightlevel << 24) |
+                (lightlevel << 16) |
+                (lightlevel <<  8) |
+                (lightlevel <<  0));
+
             var materialIndex = 0;
 
             for (var i = 0; i < indices.length; i += 3) {
@@ -428,7 +442,11 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
             }
         
             var normal = new Vector3(0, 0, 1);
-            var color = new Color(0xffffffff);
+            var color = new Color(
+                (lightlevel << 24) |
+                (lightlevel << 16) |
+                (lightlevel <<  8) |
+                (lightlevel <<  0));
             var materialIndex = 0;
 
             for (var i = 0; i < indices.length; i += 3) {
@@ -468,6 +486,8 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
         var frontSectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 0, 8);
         var frontSectorCeilingHeight = wad.readInt16At(sectorsLumpInfo.offset + rightSectorIndex * 26 + 2, 8);
 
+        var frontSectorLightlevel = wad.readByteAt(sectorsLumpInfo.offset + 26 * rightSectorIndex + 20);
+
         var vi0 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14));
         var vi1 = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 2);
         var flags = wad.readInt16At(lineDefsLumpInfo.offset + (i * 14) + 4);
@@ -489,7 +509,7 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
 
         if (leftSideDefIndex == -1) {
             if (frontMiddleTexture != '-') {
-                buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset, textureYOffset, 1, upperUnpegged, lowerUnpegged, frontSectorCeilingHeight);
+                buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset, textureYOffset, 1, upperUnpegged, lowerUnpegged, frontSectorCeilingHeight, frontSectorLightlevel);
                 faceIndex++;
             }
         } else {
@@ -497,10 +517,13 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
             var leftSectorIndex = wad.readInt16At(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 28);
             var backSectorFloorHeight = wad.readInt16At(sectorsLumpInfo.offset + leftSectorIndex * 26 + 0);
             var backSectorCeilingHeight = wad.readInt16At(sectorsLumpInfo.offset + leftSectorIndex * 26 + 2);
+            var backSectorLightlevel = wad.readByteAt(sectorsLumpInfo.offset + 26 * leftSectorIndex + 20);
 
             var backTopTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 4, 8);
             var backBottomTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 12, 8);
             var backMiddleTexture = wad.readStringAt(sidedefsLumpInfo.offset + leftSideDefIndex * 30 + 20, 8);
+
+
 
             // Middle section of front side
             if (frontMiddleTexture != '-') {
@@ -515,31 +538,31 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
                 // the good old "Tutti Frutti" effect will have its way.
 
 
-                buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, Math.max(frontSectorFloorHeight, backSectorFloorHeight), v1x, v1y, Math.min(frontSectorCeilingHeight, backSectorCeilingHeight), textureXOffset, textureYOffset, 1, upperUnpegged, lowerUnpegged, frontSectorCeilingHeight);
+                buildSingleWallSectionGeometry(scene, materialManager, frontMiddleTexture, faceIndex, v0x, v0y, Math.max(frontSectorFloorHeight, backSectorFloorHeight), v1x, v1y, Math.min(frontSectorCeilingHeight, backSectorCeilingHeight), textureXOffset, textureYOffset, 1, upperUnpegged, lowerUnpegged, frontSectorCeilingHeight, frontSectorLightlevel);
                 faceIndex++;
             }
 
             // Bottom section of front side
             if (frontBottomTexture != '-' && frontSectorFloorHeight < backSectorFloorHeight) {
-                buildSingleWallSectionGeometry(scene, materialManager, frontBottomTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, backSectorFloorHeight, textureXOffset, textureYOffset, 0, upperUnpegged, lowerUnpegged, frontSectorCeilingHeight);
+                buildSingleWallSectionGeometry(scene, materialManager, frontBottomTexture, faceIndex, v0x, v0y, frontSectorFloorHeight, v1x, v1y, backSectorFloorHeight, textureXOffset, textureYOffset, 0, upperUnpegged, lowerUnpegged, frontSectorCeilingHeight, frontSectorLightlevel);
                 faceIndex++;
             }
 
             // Top section of front side
             if (frontTopTexture != '-' && backSectorCeilingHeight < frontSectorCeilingHeight) {
-                buildSingleWallSectionGeometry(scene, materialManager, frontTopTexture, faceIndex, v0x, v0y, backSectorCeilingHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset, textureYOffset, 2, upperUnpegged, lowerUnpegged, frontSectorCeilingHeight);
+                buildSingleWallSectionGeometry(scene, materialManager, frontTopTexture, faceIndex, v0x, v0y, backSectorCeilingHeight, v1x, v1y, frontSectorCeilingHeight, textureXOffset, textureYOffset, 2, upperUnpegged, lowerUnpegged, frontSectorCeilingHeight, frontSectorLightlevel);
                 faceIndex++;
             }
 
             // Bottom section of back side
             if (backBottomTexture != '-' && backSectorFloorHeight < frontSectorFloorHeight) {
-                buildSingleWallSectionGeometry(scene, materialManager, backBottomTexture, faceIndex, v1x, v1y, backSectorFloorHeight, v0x, v0y, frontSectorFloorHeight, textureXOffset, textureYOffset, 0, upperUnpegged, lowerUnpegged, backSectorCeilingHeight);
+                buildSingleWallSectionGeometry(scene, materialManager, backBottomTexture, faceIndex, v1x, v1y, backSectorFloorHeight, v0x, v0y, frontSectorFloorHeight, textureXOffset, textureYOffset, 0, upperUnpegged, lowerUnpegged, backSectorCeilingHeight, backSectorLightlevel);
                 faceIndex++;
             }
 
             // Top section of back side
             if (backTopTexture != '-' && frontSectorCeilingHeight < backSectorCeilingHeight) {
-                buildSingleWallSectionGeometry(scene, materialManager, backTopTexture, faceIndex, v1x, v1y, frontSectorCeilingHeight, v0x, v0y, backSectorCeilingHeight, textureXOffset, textureYOffset, 2, upperUnpegged, lowerUnpegged, backSectorCeilingHeight);
+                buildSingleWallSectionGeometry(scene, materialManager, backTopTexture, faceIndex, v1x, v1y, frontSectorCeilingHeight, v0x, v0y, backSectorCeilingHeight, textureXOffset, textureYOffset, 2, upperUnpegged, lowerUnpegged, backSectorCeilingHeight, backSectorLightlevel);
                 faceIndex++;
             }
         }
@@ -589,7 +612,7 @@ function renderToThreeJs(wad) {
 
     scene.add(directionalLight);
 
-    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP11", 0);
+    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
 
     buildScene(wad, mapLumpInfo, scene, materialManager);
 
