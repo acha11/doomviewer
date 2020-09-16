@@ -111,8 +111,6 @@ function buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, bottom, v1x,
 }
 
 function buildTexture(wad, textureName) {
-    window.console.log("Loading texture " + textureName);
-
     // Find the texture in the wad
     var textureLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("TEXTURE1", 0);
     var pnamesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("PNAMES", 0);
@@ -222,8 +220,6 @@ function buildTexture(wad, textureName) {
 }
 
 function buildFlat(wad, flatName) {
-    window.console.log("Loading flat " + flatName);
-
     // Find the flat in the wad
     var flatStartLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("F_START", 0);
     var playpalLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("PLAYPAL", 0);
@@ -375,7 +371,6 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
             floorFlatName != "F_SKY2" &&
             floorFlatName != "F_SKY3") {
             var floorFlatMaterial = materialManager.getMaterialForFlat(floorFlatName);
-
 
             // Floor
             var geometry = new Geometry();
@@ -594,7 +589,7 @@ function renderToThreeJs(wad) {
 
     scene.add(directionalLight);
 
-    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP02", 0);
+    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP11", 0);
 
     buildScene(wad, mapLumpInfo, scene, materialManager);
 
@@ -773,26 +768,36 @@ function triangulateSectors(wad, mapLumpInfo) {
 
             sortedLines.push(elementToMove);
 
-
             while (path.length > 0) {
                 var lastElement = sortedLines[sortedLines.length - 1];
 
                 // Go looking for a line starting at the endpoint of the last element
-                var match = null;
+                var matches = [];
                 for (var j = 0; j < path.length; j++) {
                     var e = path[j];
 
                     if (e.v0x == lastElement.v1x && e.v0y == lastElement.v1y) {
-                        match = e;
-
-                        break;
+                        matches.push(e);
                     }
                 }
 
-                if (!match) {
-                    window.console.log("Could not find a line starting at end of last element.");
+                if (!matches.length) {
+                    window.console.log("Error for sector #" + sectorIndex + ": Could not find a line starting at end of last element.");
                     wellFormed = false;
                     break;
+                }
+
+                var match = null;
+                if (matches.length == 1) {
+                    match = matches[0];
+                } else {
+                    // Choose the successor line that is least bent to the right. THIS STRATEGY
+                    // WILL ONLY WORK FOR PERIMETERS, NOT HOLES, WHICH BEND THE OTHER WAY. WE
+                    // DON'T KNOW IF WE'RE DEALING WITH A PERIMETER OR A HOLE AT THIS POINT.
+                    window.console.log("Error for sector #" + sectorIndex + ": More than one line starting at end of last element.");
+                    wellFormed = false;
+                    break;
+
                 }
 
                 path.splice(path.indexOf(match), 1);
@@ -824,20 +829,39 @@ function triangulateSectors(wad, mapLumpInfo) {
                 var line1 = new Vector2(l1.v1x - l1.v0x, l1.v1y - l1.v0y).normalize();
                 var line2 = new Vector2(l2.v1x - l2.v0x, l2.v1y - l2.v0y).normalize();
                 
-                var theta = Math.acos(line1.x * line2.x + line1.y * line2.y);
+                // Clamp from -1 to 1 to avoid isNaN
+                var arg = line1.x * line2.x + line1.y * line2.y;
+                arg = Math.min(arg, 1);
+                arg = Math.max(arg, -1);
+
+                var theta = Math.acos(arg);
 
                 theta = theta * 180 / Math.PI;
 
-                // Theta is now (unsigned) angle between lien1 and line2
+                // Theta is now (unsigned) angle between line1 and line2
                 
                 // Flip theta if it's a CCW rotation.
                 if (line1.x * line2.y - line1.y * line2.x > 0) theta *= -1;
 
+                if (isNaN(theta)) {
+                    window.console.log("Error for sector #" + sectorIndex + ", path " + key + ", line " + j + ": theta is NaN");
+                    window.console.log("  first line is  (" + l1.v0x + ", " + l1.v0y + ") to (" + l1.v1x + ", " + l1.v1y + ")" );
+                    window.console.log("  second line is (" + l2.v0x + ", " + l2.v0y + ") to (" + l2.v1x + ", " + l2.v1y + ")" );
+                    window.console.log(line1, line2, theta);
+
+                    wellFormed = false;
+                    break;
+                }
+
                 accumulatedAngle += theta;
             }
 
+            if (!wellFormed) break;
+
             (accumulatedAngle > 0 ? perimeters : holes).push(path);
         }
+
+        if (!wellFormed) continue;
 
         var vertices = [];
         var holeStartIndexesForEarcut = [];
