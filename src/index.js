@@ -111,6 +111,8 @@ function buildGeometryForWallSection(geometry, faceIndex, v0x, v0y, bottom, v1x,
 }
 
 function buildTexture(wad, textureName) {
+    window.console.log("Loading texture " + textureName);
+
     // Find the texture in the wad
     var textureLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("TEXTURE1", 0);
     var pnamesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("PNAMES", 0);
@@ -141,8 +143,6 @@ function buildTexture(wad, textureName) {
 
             var data = new Uint8Array(4 * width * height);
 
-            window.console.log(i + " " + textureName + ", dims " + texWidth + " x " + texHeight);
-
             var numberOfPatches = wad.readInt16At(absoluteOffsetToTextureInfo + 20);
 
             for (var j = 0; j < numberOfPatches; j++) {
@@ -160,9 +160,6 @@ function buildTexture(wad, textureName) {
                 var picHeight = wad.readInt16At(picLump.offset + 2);
                 var picLeftOffset = wad.readInt16At(picLump.offset + 4);
                 var picTopOffset = wad.readInt16At(picLump.offset + 6);
-
-                window.console.log("  Applying patch " + j + ", patch index " + patchIndex + ", with name " + patchName);
-                window.console.log("    Pic dims: " + picWidth + " x " + picHeight + ", offset " + patchXOffset + ", " + patchYOffset);
 
                 // For each column of the picture (patch)
                 for (var col = 0; col < picWidth; col++) {
@@ -224,8 +221,99 @@ function buildTexture(wad, textureName) {
     }
 }
 
+function buildFlat(wad, flatName) {
+    window.console.log("Loading flat " + flatName);
+
+    // Find the flat in the wad
+    var flatStartLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("F_START", 0);
+    var playpalLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("PLAYPAL", 0);
+
+    var palette = [];
+
+    for (var i = 0; i < 768; i++) {
+        palette.push(wad.readByteAt(playpalLumpInfo.offset + i));
+    }
+
+    var flatLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex(flatName, flatStartLumpInfo.lumpIndex);
+
+    var texWidth = 64;
+    var texHeight = 64;
+
+    var width = texWidth;
+    var height = texHeight;
+
+    var data = new Uint8Array(4 * width * height);
+
+    var sourcePointer = flatLumpInfo.offset;
+    var destPointer = 0;
+
+    for (var col = 0; col < width; col++) {
+        for (var row = 0; row < height; row++) {
+            var colorIndex = wad.readByteAt(sourcePointer++);
+
+            // RGB
+            data[destPointer++] = palette[colorIndex * 3 + 0];
+            data[destPointer++] = palette[colorIndex * 3 + 1];
+            data[destPointer++] = palette[colorIndex * 3 + 2];
+
+            // Alpha
+            data[destPointer++] = 0xff;
+        }
+    }
+
+    var texture = new DataTexture(data, width, height, RGBAFormat);
+
+    texture.wrapS = RepeatWrapping;
+    texture.wrapT = RepeatWrapping;
+
+    // The effect of the following lines is: rather than texture u & v ranging from 0..1, they will range from 0..textureWidth
+    // and 0..textureHeight respectively. This is convenient because in doom, u and v for a wall segment are calculated based
+    // on the span of world space the wall covers - by setting the texture's u/v coordinate space to align with world units,
+    // when we build geometry for walls, we can set u and v based on world space units.
+    texture.repeat.x = 1.0 / texWidth;
+    texture.repeat.y = 1.0 / texHeight;
+
+    return texture;
+}
+
+function buildKeyForTexture(textureName) { return "TEXTURE_" + textureName; }
+function buildKeyForFlat(flatName) { return "FLAT_" + flatName; }
+
+function materialManager_getMaterialForFlat(flatname) {
+    var key = buildKeyForFlat(flatname);
+
+    var material = this.materialsByKey[key];
+
+    if (!material) {
+        // Textures
+        var texture = buildFlat(this.wad, flatname);
+
+        if (texture == null) {
+            throw "Failed to load flat " + flatname;
+        }
+
+        this.texturesByKey[key] = texture;
+
+        // Materials
+        material =
+            new MeshBasicMaterial({
+                wireframe: false,
+                vertexColors: FaceColors,
+                map: this.texturesByKey[key],
+                transparent: false,
+                alphaTest: 0.01
+            });
+
+        this.materialsByKey[key] = material;
+    }
+
+    return material;
+}
+
 function materialManager_getMaterial(texname) {
-    var material = this.materialsByTexname[texname];
+    var key = buildKeyForTexture(texname);
+
+    var material = this.materialsByKey[key];
 
     if (!material) {
         // Textures
@@ -235,19 +323,19 @@ function materialManager_getMaterial(texname) {
             throw "Failed to load texture " + texname;
         }
 
-        this.texturesByTexname[texname] = texture;
+        this.texturesByKey[key] = texture;
 
         // Materials
         material =
             new MeshBasicMaterial({
                 wireframe: false,
                 vertexColors: FaceColors,
-                map: this.texturesByTexname[texname],
+                map: this.texturesByKey[key],
                 transparent: false,
                 alphaTest: 0.01
             });
 
-        this.materialsByTexname[texname] = material;
+        this.materialsByKey[key] = material;
     }
 
     return material;
@@ -281,56 +369,95 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
         var floorHeight = wad.readInt16At(sectorsLumpInfo.offset + 26 * sectorIndex);
         var ceilingHeight = wad.readInt16At(sectorsLumpInfo.offset + 26 * sectorIndex + 2);
 
-        // Floor
-        var geometry = new Geometry();
+        var floorFlatName = wad.readStringAt(sectorsLumpInfo.offset + 26 * sectorIndex + 4, 8);
 
-        var vertices = sector.vertices;
-        var indices = sector.triangleIndices;
+        if (floorFlatName != "F_SKY1" &&
+            floorFlatName != "F_SKY2" &&
+            floorFlatName != "F_SKY3") {
+            var floorFlatMaterial = materialManager.getMaterialForFlat(floorFlatName);
 
-        for (var i = 0; i < indices.length; i++) {
-            geometry.vertices.push(new Vector3(vertices[indices[i] * 2], floorHeight, -vertices[indices[i] * 2 + 1]));
+
+            // Floor
+            var geometry = new Geometry();
+
+            var vertices = sector.vertices;
+            var indices = sector.triangleIndices;
+
+            for (var i = 0; i < indices.length; i++) {
+                geometry.vertices.push(new Vector3(vertices[indices[i] * 2], floorHeight, -vertices[indices[i] * 2 + 1]));
+            }
+        
+            var normal = new Vector3(0, 0, 1);
+            var color = new Color(0xffffffff);
+            var materialIndex = 0;
+
+            for (var i = 0; i < indices.length; i += 3) {
+                // Create a face, referencing the vertices by their index
+                geometry.faces.push(
+                    new Face3(i, i + 1, i + 2, normal, color, materialIndex)
+                );
+
+                // Create a "UV coordinates for face" entry. The new entry is an array with
+                // one item for each point on the poly. Each of those items is a Vector2
+                // containing the UV coordinates to use for that vertex of the polygon.
+                geometry.faceVertexUvs[0].push(
+                    [
+                        new Vector2(geometry.vertices[i].x, geometry.vertices[i].z),
+                        new Vector2(geometry.vertices[i + 1].x, geometry.vertices[i + 1].z),
+                        new Vector2(geometry.vertices[i + 2].x, geometry.vertices[i + 2].z)
+                    ]
+                )
+            }
+
+            geometry.computeFaceNormals();
+            geometry.computeVertexNormals();
+
+            scene.add(new Mesh(geometry, floorFlatMaterial));
         }
-    
-        var normal = new Vector3(0, 0, 1);
-        var color = new Color(0xffffffff);
-        var materialIndex = 0;
 
-        for (var i = 0; i < indices.length; i += 3) {
-            geometry.faces.push(
-                new Face3(i, i + 1, i + 2, normal, color, materialIndex)
-            );
-        }
-
-        geometry.computeFaceNormals();
-        geometry.computeVertexNormals();
-
-        scene.add(new Mesh(geometry, materialManager.getMaterial("BRONZE1")));
+        var ceilingFlatName = wad.readStringAt(sectorsLumpInfo.offset + 26 * sectorIndex + 12, 8);
 
         // Ceiling
-        var geometry = new Geometry();
+        if (ceilingFlatName != "F_SKY1" &&
+            ceilingFlatName != "F_SKY2" &&
+            ceilingFlatName != "F_SKY3") {
+            var ceilingFlatMaterial = materialManager.getMaterialForFlat(ceilingFlatName);
 
-        var vertices = sector.vertices;
-        var indices = sector.triangleIndices;
+            var geometry = new Geometry();
 
-        for (var i = indices.length - 1; i >= 0; i--) {
-            geometry.vertices.push(new Vector3(vertices[indices[i] * 2], ceilingHeight, -vertices[indices[i] * 2 + 1]));
+            var vertices = sector.vertices;
+            var indices = sector.triangleIndices;
+
+            for (var i = indices.length - 1; i >= 0; i--) {
+                geometry.vertices.push(new Vector3(vertices[indices[i] * 2], ceilingHeight, -vertices[indices[i] * 2 + 1]));
+            }
+        
+            var normal = new Vector3(0, 0, 1);
+            var color = new Color(0xffffffff);
+            var materialIndex = 0;
+
+            for (var i = 0; i < indices.length; i += 3) {
+                geometry.faces.push(
+                    new Face3(i, i + 1, i + 2, normal, color, materialIndex)
+                );
+
+                // Create a "UV coordinates for face" entry. The new entry is an array with
+                // one item for each point on the poly. Each of those items is a Vector2
+                // containing the UV coordinates to use for that vertex of the polygon.
+                geometry.faceVertexUvs[0].push(
+                    [
+                        new Vector2(geometry.vertices[i].x, geometry.vertices[i].z),
+                        new Vector2(geometry.vertices[i + 1].x, geometry.vertices[i + 1].z),
+                        new Vector2(geometry.vertices[i + 2].x, geometry.vertices[i + 2].z)
+                    ]
+                )
+            }
+
+            geometry.computeFaceNormals();
+            geometry.computeVertexNormals();
+
+            scene.add(new Mesh(geometry, ceilingFlatMaterial));
         }
-    
-        var normal = new Vector3(0, 0, 1);
-        var color = new Color(0xffffffff);
-        var materialIndex = 0;
-
-        for (var i = 0; i < indices.length; i += 3) {
-            geometry.faces.push(
-                new Face3(i, i + 1, i + 2, normal, color, materialIndex)
-            );
-        }
-
-        geometry.computeFaceNormals();
-        geometry.computeVertexNormals();
-
-        scene.add(new Mesh(geometry, materialManager.getMaterial("BRONZE1")));
-
     }
 
 
@@ -447,11 +574,12 @@ function renderToThreeJs(wad) {
     controls.lat = 120;
 
     var materialManager = {
-        texturesByTexname: {},
-        materialsByTexname: {},
+        texturesByKey: {},
+        materialsByKey: {},
         wad: wad,
 
-        getMaterial: materialManager_getMaterial
+        getMaterial: materialManager_getMaterial,
+        getMaterialForFlat: materialManager_getMaterialForFlat
     };
     
     // Lights
@@ -466,7 +594,7 @@ function renderToThreeJs(wad) {
 
     scene.add(directionalLight);
 
-    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
+    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP05", 0);
 
     buildScene(wad, mapLumpInfo, scene, materialManager);
 
@@ -625,6 +753,8 @@ function triangulateSectors(wad, mapLumpInfo) {
             paths[a.group].push(a);
         }
 
+        var wellFormed = true;
+
         // Go through each of the paths and sort the lines in the path
         for (var key in paths) {
             var path = paths[key];
@@ -636,6 +766,7 @@ function triangulateSectors(wad, mapLumpInfo) {
             path.splice(path.indexOf(elementToMove), 1);
 
             sortedLines.push(elementToMove);
+
 
             while (path.length > 0) {
                 var lastElement = sortedLines[sortedLines.length - 1];
@@ -652,15 +783,23 @@ function triangulateSectors(wad, mapLumpInfo) {
                     }
                 }
 
-                if (!match) throw "Could not find a line starting at end of last element.";
+                if (!match) {
+                    window.console.log("Could not find a line starting at end of last element.");
+                    wellFormed = false;
+                    break;
+                }
 
                 path.splice(path.indexOf(match), 1);
 
                 sortedLines.push(match);
             }
 
+            if (!wellFormed) break;
+
             paths[key] = sortedLines;
         }
+
+        if (!wellFormed) continue;
 
         var perimeters = [];
         var holes = [];
