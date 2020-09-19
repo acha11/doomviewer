@@ -1,6 +1,6 @@
 ## Todo
 
-* Triangulation: Don't ignore sectors whose perimeter kisses itself 
+* Render Back middle walls (e.g. gratings on hallway intersection on MAP26)
 * Animated floors and ceilings
 * Skybox
 * Animated Walls
@@ -11,6 +11,7 @@
 
 ## Done
 
+* Triangulation: Don't ignore sectors whose perimeter kisses itself 
 * Set brightness of floors, walls and ceilings based on sector
 * Triangulation: Handle failure to detect winding of sector path due to imprecision causing value above 1.0 being passed to Math.acos()
 * Triangulation: Don't crash on open sectors

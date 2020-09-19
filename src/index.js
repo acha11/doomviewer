@@ -389,8 +389,6 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
                 geometry.vertices.push(new Vector3(vertices[indices[i] * 2], floorHeight, -vertices[indices[i] * 2 + 1]));
             }
         
-            window.console.log(lightlevel);
-
             var normal = new Vector3(0, 0, 1);
             var color = new Color(
                 (lightlevel << 24) |
@@ -612,7 +610,7 @@ function renderToThreeJs(wad) {
 
     scene.add(directionalLight);
 
-    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
+    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP06", 0);
 
     buildScene(wad, mapLumpInfo, scene, materialManager);
 
@@ -659,6 +657,46 @@ function loadWad() {
             return wad;
         })
     );
+}
+
+function getLongestAcyclicRouteThroughLines(path, currentPoint, startPoint) {
+    // If we don't have any lines left, or we got back to where we started, then bail out
+    if (path.length == 0 || (startPoint && (startPoint == currentPoint))) return [];
+
+    // If the caller hasn't specified a current point, just choose one arbitrarily
+    if (currentPoint == null) {
+        currentPoint = path[0];
+    }
+
+    if (startPoint == null) {
+        startPoint = currentPoint;
+    }
+
+    // Go looking for a line starting at the endpoint of the last element
+    var availableLines = [ ];
+    for (var j = 0; j < path.length; j++) {
+        var e = path[j];
+
+        if (e.v0x == currentPoint.v1x && e.v0y == currentPoint.v1y) {
+            var copy = Array.from(path);
+            copy.splice(j, 1);
+            availableLines.push({ line: e, longestRoute: getLongestAcyclicRouteThroughLines(copy, e, startPoint) });
+        }
+    }
+
+    if (!availableLines.length) {
+        throw "Sector isn't closed.";
+    }
+
+    var longest = availableLines[0];
+
+    for (var j = 1; j < availableLines.length; j++) {
+        if (longest.longestRoute.length < availableLines[j].longestRoute.length) {
+            longest = availableLines[j];
+        }
+    }
+
+    return [ longest.line ].concat(longest.longestRoute);
 }
 
 function triangulateSectors(wad, mapLumpInfo) {
@@ -757,7 +795,7 @@ function triangulateSectors(wad, mapLumpInfo) {
                                 c.group = a.group;
                             }
                         }
-                    }                        
+                    }
                 }
             }
         }
@@ -781,56 +819,12 @@ function triangulateSectors(wad, mapLumpInfo) {
 
         // Go through each of the paths and sort the lines in the path
         for (var key in paths) {
-            var path = paths[key];
-
-            var sortedLines = [];
-
-            var elementToMove = path[0];
-
-            path.splice(path.indexOf(elementToMove), 1);
-
-            sortedLines.push(elementToMove);
-
-            while (path.length > 0) {
-                var lastElement = sortedLines[sortedLines.length - 1];
-
-                // Go looking for a line starting at the endpoint of the last element
-                var matches = [];
-                for (var j = 0; j < path.length; j++) {
-                    var e = path[j];
-
-                    if (e.v0x == lastElement.v1x && e.v0y == lastElement.v1y) {
-                        matches.push(e);
-                    }
-                }
-
-                if (!matches.length) {
-                    window.console.log("Error for sector #" + sectorIndex + ": Could not find a line starting at end of last element.");
-                    wellFormed = false;
-                    break;
-                }
-
-                var match = null;
-                if (matches.length == 1) {
-                    match = matches[0];
-                } else {
-                    // Choose the successor line that is least bent to the right. THIS STRATEGY
-                    // WILL ONLY WORK FOR PERIMETERS, NOT HOLES, WHICH BEND THE OTHER WAY. WE
-                    // DON'T KNOW IF WE'RE DEALING WITH A PERIMETER OR A HOLE AT THIS POINT.
-                    window.console.log("Error for sector #" + sectorIndex + ": More than one line starting at end of last element.");
-                    wellFormed = false;
-                    break;
-
-                }
-
-                path.splice(path.indexOf(match), 1);
-
-                sortedLines.push(match);
-            }
-
-            if (!wellFormed) break;
-
-            paths[key] = sortedLines;
+            try {
+                paths[key] = getLongestAcyclicRouteThroughLines(paths[key], null);
+            } catch (e) {
+                window.console.log("Error triangulating sector " + sectorIndex + ": " + e);
+                wellFormed = false;
+           }
         }
 
         if (!wellFormed) continue;
