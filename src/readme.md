@@ -1,14 +1,15 @@
 ## Todo
 
-* Animated floors and ceilings
-* Skybox
-* Animated Walls
 * Spawn at correct height and look angle
 * Stick to floor
+* Skybox
+* Accelerating movement
+* Correctly handle transparent textures like those to the player's left (near the chainsaw) at the start of Doom 2 MAP01
+* Animated floors and ceilings
+* Animated Walls
 * Things
 * Bundle geometry with same material to reduce draw calls
 * Flickering lights
-* Accelerating movement
 
 ## Done
 
