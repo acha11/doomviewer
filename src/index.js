@@ -354,6 +354,8 @@ function buildSingleWallSectionGeometry(scene, materialManager, texname, faceInd
     scene.add(new Mesh(geometry, materialManager.getMaterial(texname)));
 }
 
+var sectorTriangulation = null;
+
 function buildScene(wad, mapLumpInfo, scene, materialManager) {
     var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", mapLumpInfo.lumpIndex);
     var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", mapLumpInfo.lumpIndex);
@@ -364,6 +366,8 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
 
     // Build floors
     var sectorInfo = triangulateSectors(wad, mapLumpInfo);
+
+    sectorTriangulation = sectorInfo;
 
     for (var sectorIndex in sectorInfo) {
         var sector = sectorInfo[sectorIndex];
@@ -617,7 +621,7 @@ function renderToThreeJs(wad) {
 
     scene.add(directionalLight);
 
-    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP26", 0);
+    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP14", 0);
 
     buildScene(wad, mapLumpInfo, scene, materialManager);
 
@@ -630,12 +634,16 @@ function renderToThreeJs(wad) {
         var thingType = wad.readInt16At(thingOffset + 6);
 
         if (thingType == 1) {
-            camera.position.x = wad.readInt16At(thingOffset + 0);
-
-            // TODO: Set camera height based on floor height of sector we're in
-            camera.position.y = 90;
+            camera.position.x = wad.readInt16At(thingOffset + 0);           
             camera.position.z = wad.readInt16At(thingOffset + 2) * -1;
+
+            // Set camera height based on floor height of sector we're in
+            var startSectorIndex = getIndexOfSectorContaining2dPoint(wad.readInt16At(thingOffset + 0), wad.readInt16At(thingOffset + 2));
+
+            camera.position.y = sectorTriangulation[startSectorIndex].floorLevel + 48;
         }
+
+        camera.position.dy = 0;
     }
 
     var time = 0;
@@ -644,11 +652,69 @@ function renderToThreeJs(wad) {
         controls.update(delta);
         stats.update();
 
+        // Set camera height based on floor height of sector we're in
+        var currentSectorIndex = getIndexOfSectorContaining2dPoint(camera.position.x, camera.position.z * -1);
+
+        if (!!currentSectorIndex || currentSectorIndex == 0) {
+            var targetEyelevel = sectorTriangulation[currentSectorIndex].floorLevel + 48;
+
+            if (camera.position.y < targetEyelevel) {
+                camera.position.y = targetEyelevel;
+                camera.position.dy = 0;
+            } else {
+                if (camera.position.y > targetEyelevel) {
+                    if (camera.position.y - targetEyelevel < 0.05) {
+                        camera.position.y = targetEyelevel;
+                        camera.position.dy = 0;
+                    } else {
+                        camera.position.dy -= delta * 15;
+                        camera.position.y += camera.position.dy;
+                    }
+                }
+            }
+        }
+
+
+
         requestAnimationFrame(animate);
         renderer.render(scene, camera);
     }
 
     animate();
+}
+
+function getSideOfLineThatPointFallsOn(x, y, vertices, indices, index1, index2) {
+    var x0 = vertices[indices[index1] * 2];
+    var y0 = vertices[indices[index1] * 2 + 1];
+    var x1 = vertices[indices[index2] * 2];
+    var y1 = vertices[indices[index2] * 2 + 1];
+
+    var side = (x - x0) * (y1 - y0) - (y - y0) * (x1 - x0);
+
+    return side;
+}
+
+function getIndexOfSectorContaining2dPoint(x, y) {
+    for (var sectorIndex in sectorTriangulation) {
+
+        var sector = sectorTriangulation[sectorIndex];
+
+        var vertices = sector.vertices;
+        var indices = sector.triangleIndices;
+
+        // Check whether the supplied point falls within any of the triangles in the sector
+        // For each triangle
+        for (var i = 0; i < indices.length; i += 3) {
+            var sideForLine0 = getSideOfLineThatPointFallsOn(x, y, vertices, indices, i + 0, i + 1);
+            var sideForLine1 = getSideOfLineThatPointFallsOn(x, y, vertices, indices, i + 1, i + 2);
+            var sideForLine2 = getSideOfLineThatPointFallsOn(x, y, vertices, indices, i + 2, i + 0);
+
+            if (sideForLine0 < 0 && sideForLine1 < 0 && sideForLine2 < 0) {
+                // Point is inside this triangle
+                return sectorIndex;
+            }
+        }
+    }
 }
 
 function loadWad() {
@@ -710,6 +776,7 @@ function triangulateSectors(wad, mapLumpInfo) {
     var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", mapLumpInfo.lumpIndex);
     var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", mapLumpInfo.lumpIndex);
     var sidedefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SIDEDEFS", mapLumpInfo.lumpIndex);
+    var sectorsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("SECTORS", mapLumpInfo.lumpIndex);
 
     var numberOfLineDefs = lineDefsLumpInfo.length / 14;
 
@@ -920,7 +987,10 @@ function triangulateSectors(wad, mapLumpInfo) {
             vertices: vertices,
             triangleIndices: triangles,
             perimeters: perimeters,
-            holes: holes
+            holes: holes,
+            floorLevel: wad.readInt16At(sectorsLumpInfo.offset + 26 * sectorIndex),
+            ceilingLevel: wad.readInt16At(sectorsLumpInfo.offset + 26 * sectorIndex + 2),
+            lightLevel: wad.readByteAt(sectorsLumpInfo.offset + 26 * sectorIndex + 20)
         };
     }
 
@@ -934,7 +1004,7 @@ function render2dMapToCanvas(wad) {
 
     var ctx = canvas.getContext('2d');
 
-    var mapLumpInfo =    wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP02", 0);
+    var mapLumpInfo =      wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP02", 0);
     var lineDefsLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("LINEDEFS", mapLumpInfo.lumpIndex);
     var vertexesLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("VERTEXES", mapLumpInfo.lumpIndex);
 

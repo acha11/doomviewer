@@ -178,11 +178,11 @@ var FpsStyleControls = function (object, domElement) {
 
 			if (this.enabled === false) return;
 
-			if (this.moveForward) this.zVelocity = -400;
-			if (this.moveBackward) this.zVelocity = 400;
+			if (this.moveForward) this.zVelocity = -300;
+			if (this.moveBackward) this.zVelocity = 300;
 
-			if (this.moveLeft) this.xVelocity = -300;
-			if (this.moveRight) this.xVelocity = 300;
+			if (this.moveLeft) this.xVelocity = -150;
+			if (this.moveRight) this.xVelocity = 150;
 
 			if (this.moveDown) this.yVelocity = -200;
 			if (this.moveUp) this.yVelocity = 200;

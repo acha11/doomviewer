@@ -1,7 +1,5 @@
 ## Todo
 
-* Spawn at correct height and look angle
-* Stick to floor
 * Skybox
 * Accelerating movement
 * Correctly handle transparent textures like those to the player's left (near the chainsaw) at the start of Doom 2 MAP01
@@ -13,6 +11,8 @@
 
 ## Done
 
+* Spawn at correct height and look angle
+* Stick to floor
 * Render back middle walls (e.g. gratings on "windows" user starts looking at on MAP26)
 * Triangulation: Don't ignore sectors whose perimeter kisses itself 
 * Set brightness of floors, walls and ceilings based on sector
