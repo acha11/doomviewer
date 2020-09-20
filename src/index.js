@@ -3,6 +3,8 @@ import {
     PerspectiveCamera,
     Scene, 
     MeshBasicMaterial, 
+    MeshPhongMaterial, 
+
     Geometry,
     Vector2, 
     Vector3, 
@@ -15,7 +17,8 @@ import {
     FaceColors,
     WebGLRenderer,
     AmbientLight,
-    DirectionalLight} from 'three';
+    DirectionalLight,
+    PointLight} from 'three';
 
 import { FpsStyleControls } from './FpsStyleControls.js';
 import { Wad } from './Wad.js';
@@ -298,9 +301,9 @@ function materialManager_getMaterialForFlat(flatname) {
 
         // Materials
         material =
-            new MeshBasicMaterial({
+            new MeshPhongMaterial({
                 wireframe: false,
-                vertexColors: FaceColors,
+                //vertexColors: FaceColors,
                 map: this.texturesByKey[key],
                 transparent: false,
                 alphaTest: 0.01
@@ -329,9 +332,9 @@ function materialManager_getMaterial(texname) {
 
         // Materials
         material =
-            new MeshBasicMaterial({
+            new MeshPhongMaterial({
                 wireframe: false,
-                vertexColors: FaceColors,
+                //vertexColors: FaceColors,
                 map: this.texturesByKey[key],
                 transparent: false,
                 alphaTest: 0.01
@@ -567,6 +570,8 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
     }
 }
 
+var playerLight = null;
+
 function renderToThreeJs(wad) {
     var scene = new Scene();
     var camera = new PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 20000);
@@ -598,19 +603,14 @@ function renderToThreeJs(wad) {
         getMaterialForFlat: materialManager_getMaterialForFlat
     };
     
-    // Lights
     var light = new AmbientLight(0x404040);
     scene.add(light);
 
-    // White directional light at half intensity
-    var directionalLight = new DirectionalLight(0xffffff, 0.5);
-    directionalLight.position.x = 1;
-    directionalLight.position.y = 1;
-    directionalLight.position.z = 1;
+    
+    playerLight = new PointLight(0xa0a0a0, 0.4, 800);
+    scene.add(playerLight);
 
-    scene.add(directionalLight);
-
-    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP06", 0);
+    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP01", 0);
 
     buildScene(wad, mapLumpInfo, scene, materialManager);
 
@@ -634,6 +634,8 @@ function renderToThreeJs(wad) {
     var time = 0;
     function animate() {               
         var delta = clock.getDelta();
+          playerLight.position.set(camera.position.x, camera.position.y, camera.position.z);
+        //playerLight.position.set(1280, 60, 768);
         controls.update(delta);
         stats.update();
 

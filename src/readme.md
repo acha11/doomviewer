@@ -1,6 +1,7 @@
 ## Todo
 
 * Render Back middle walls (e.g. gratings on hallway intersection on MAP26)
+* Clip camera movement to geometry
 * Animated floors and ceilings
 * Skybox
 * Animated Walls
@@ -8,6 +9,9 @@
 * Stick to floor
 * Things
 * Bundle geometry with same material to reduce draw calls
+* Player as light source (to approximate original's distance-based falloff)
+* Things as light sources?
+* Ambient occlusion?
 
 ## Done
 
