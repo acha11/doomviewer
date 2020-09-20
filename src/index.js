@@ -552,6 +552,13 @@ function buildScene(wad, mapLumpInfo, scene, materialManager) {
                 faceIndex++;
             }
 
+            // Middle section of back side
+            if (backMiddleTexture != '-') {
+                buildSingleWallSectionGeometry(scene, materialManager, backMiddleTexture, faceIndex, v1x, v1y, Math.max(frontSectorFloorHeight, backSectorFloorHeight), v0x, v0y, Math.min(frontSectorCeilingHeight, backSectorCeilingHeight), textureXOffset, textureYOffset, 1, upperUnpegged, lowerUnpegged, backSectorCeilingHeight, backSectorLightlevel);
+                faceIndex++;
+            }
+
+
             // Bottom section of back side
             if (backBottomTexture != '-' && backSectorFloorHeight < frontSectorFloorHeight) {
                 buildSingleWallSectionGeometry(scene, materialManager, backBottomTexture, faceIndex, v1x, v1y, backSectorFloorHeight, v0x, v0y, frontSectorFloorHeight, textureXOffset, textureYOffset, 0, upperUnpegged, lowerUnpegged, backSectorCeilingHeight, backSectorLightlevel);
@@ -610,7 +617,7 @@ function renderToThreeJs(wad) {
 
     scene.add(directionalLight);
 
-    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP06", 0);
+    var mapLumpInfo = wad.getFirstMatchingLumpAfterSpecifiedLumpIndex("MAP26", 0);
 
     buildScene(wad, mapLumpInfo, scene, materialManager);
 
